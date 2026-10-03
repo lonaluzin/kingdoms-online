@@ -4,8 +4,8 @@ assert.ok(base?.startsWith('https://'),'Pass deployed HTTPS URL');
 const client=()=>{let cookie='';return async(path,data)=>{const res=await fetch(base+'/api/'+path,{method:data?'POST':'GET',headers:{cookie,...(data?{'Content-Type':'application/json'}:{})},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(15000)});if(res.headers.get('set-cookie'))cookie=res.headers.get('set-cookie').split(';')[0];const json=await res.json();return {status:res.status,...json};};};
 const a=client(),b=client();
 assert.equal((await fetch(base+'/health')).status,200);
-assert.equal((await (await fetch(base+'/health')).json()).version,'0.3.0');
-for(const file of ['index.html','app.js','online.js','world.js','audio.js','navigation.js','online.css','vendor/three.module.min.js','vendor/three.core.min.js','vendor/OrbitControls.js'])assert.equal((await fetch(base+'/'+file)).status,200,file);
+assert.equal((await (await fetch(base+'/health')).json()).version,'0.4.0');
+for(const file of ['index.html','app.js','online.js','world.js','audio.js','navigation.js','models.js','formation.js','online.css','vendor/three.module.min.js','vendor/three.core.min.js','vendor/OrbitControls.js'])assert.equal((await fetch(base+'/'+file)).status,200,file);
 assert.equal((await fetch(base+'/server.mjs')).status,404);
 try{
  const created=await a('create',{name:'Проверка A',bots:1,map:'hills'});assert.ok(created.ok);const code=created.room.code;
@@ -22,5 +22,16 @@ try{
  assert.equal((await a('command',{id:'self-war',type:'diplomacy',args:{target:'home',action:'war'}})).ok,false);
  assert.ok((await a('command',{id:'real-war',type:'diplomacy',args:{target:'gold',action:'war'}})).ok);
  const marching=await a('command',{id:'routed-march',type:'march',args:{target:'gold',fraction:.25}});assert.ok(marching.ok);assert.ok(marching.room.state.marches[0].route.length>2);assert.equal(marching.room.state.map,'hills');
- console.log(JSON.stringify({ok:true,base,twoIndependentClients:true,bots:true,privateEconomies:true,diplomacy:true,assets:true}));
+ await a('leave',{});await b('leave',{});
+ const second=await a('create',{name:'Проверка владений A',bots:0,map:'valley'});assert.ok(second.ok);assert.ok((await b('join',{name:'Проверка владений B',code:second.room.code})).ok);assert.ok((await a('start',{})).ok);
+ assert.ok((await a('command',{id:'camp-attack',type:'march',args:{target:'bandits',fraction:.75}})).ok);
+ let battleSeen=false,captured=false,guardBefore=0;const deadline=Date.now()+150000;
+ while(Date.now()<deadline){const x=await a('state'),y=await b('state'),m=x.room.state.mapMarches.find(m=>m.target==='bandits');if(m?.battle){battleSeen=true;assert.ok(y.room.state.mapMarches.some(other=>other.id===m.id&&other.battle));assert.ok(m.combat&&m.morale>=0);}if(x.room.state.places.find(p=>p.id==='bandits').owner==='player'){captured=true;guardBefore=x.room.state.settlements.bandits.composition.spear||0;break;}await new Promise(resolve=>setTimeout(resolve,500));}
+ assert.ok(battleSeen,'Both clients see the battle');assert.ok(captured,'Camp captured');
+ assert.ok((await a('command',{id:'camp-farm',type:'build',args:{key:'farm',settlement:'bandits'}})).ok);
+ assert.ok((await a('command',{id:'capital-farm',type:'build',args:{key:'farm'}})).ok);
+ assert.ok((await a('command',{id:'camp-hire',type:'recruit',args:{key:'spear',count:5,settlement:'bandits'}})).ok);
+ assert.equal((await b('command',{id:'foreign-build',type:'build',args:{key:'walls',settlement:'bandits'}})).ok,false);
+ await new Promise(resolve=>setTimeout(resolve,27000));const x=await a('state'),y=await b('state');assert.equal(x.room.state.settlements.bandits.buildings.farm,1);assert.equal(y.room.state.settlements.bandits.buildings.farm,1);assert.equal(x.room.state.settlements.bandits.composition.spear,guardBefore+5);assert.equal(x.room.state.buildings.farm,2);assert.equal(y.room.state.buildings.farm,1);
+ console.log(JSON.stringify({ok:true,base,twoIndependentClients:true,bots:true,privateEconomies:true,diplomacy:true,assets:true,sharedBattle:true,capture:true,localConstruction:true,localRecruitment:true}));
 }finally{await a('leave',{});await b('leave',{});}
