@@ -62,11 +62,13 @@ export function power(troops, s, target) {
 }
 export function income(s) {
   const r = { gold: 60, wood: 30, stone: 20, food: 90 };
+  if(s.map==='forest')r.wood+=25;else if(s.map==='hills')r.stone+=25;else if(s.map==='valley')r.food+=25;
   for (const [key,b] of Object.entries(BUILDINGS)) for (const [res,v] of Object.entries(b.income)) r[res] += v * s.buildings[key];
   r.gold += Object.entries(s.relations).filter(([k,r])=>!r.group||r.group===k).map(([,r])=>r).filter(x => x.trade && x.status !== 'war').length * 65;
   for (const p of s.places) if (p.owner === (s.playerId || 'player') && p.id !== (s.home || 'home')) { r.gold += 30; r[p.kind === 'village' ? 'food' : 'stone'] += 45; }
   r.food *= 1 + s.techs.harvest * .25;
   if (s.events.some(e => e.type === 'drought' && e.end > s.time)) r.food *= .45;
+  r.food -= s.places.filter(p=>p.owner===(s.playerId||'player')).reduce((n,p)=>n+totalTroops(p.garrison||{})*.6,0);
   r.food -= totalTroops(s.troops) * .6 + s.marches.reduce((n,m) => n + totalTroops(m.troops) * .6, 0);
   return r;
 }
@@ -140,11 +142,13 @@ export function act(s, type, args = {}) {
     pay(s,cost); s.resources[args.side === 'buy' ? args.resource : 'gold'] += args.side === 'buy' ? 100 : Math.floor(price * .65);
     return {ok:true,message:args.side === 'buy' ? `Куплено: ${RESOURCES[args.resource]} +100` : `Продано: ${RESOURCES[args.resource]} −100`};
   }
-  if (type === 'march') {
+  if (type === 'march' || type === 'reinforce') {
     const p = s.places.find(p => p.id === args.target);
-    if (!p || p.owner === (s.playerId || 'player')) return fail('Выберите чужое поселение');
+    if(!p)return fail('Неизвестное поселение');
+    if(type==='reinforce'&&(p.owner!==(s.playerId||'player')||p.id===(s.home||'home')))return fail('Выберите своё владение вне столицы');
+    if(type==='march'&&p.owner===(s.playerId||'player'))return fail('Выберите чужое поселение');
     if (s.marches.some(m => m.target === p.id && !m.returning)) return fail('Армия уже идёт к этой цели');
-    if (s.relations[p.id] && s.relations[p.id].status !== 'war') return fail('Перед походом объявите войну в окне дипломатии');
+    if (type==='march' && s.relations[p.id] && s.relations[p.id].status !== 'war') return fail('Перед походом объявите войну в окне дипломатии');
     const fraction = Number(args.fraction ?? 1);
     if (![.25,.5,.75,1].includes(fraction)) return fail('Неверная доля войска');
     const troops = Object.fromEntries(Object.entries(s.troops).map(([k,v]) => [k,Math.floor(v * fraction)]));

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
+import {MAPS,riverX as mapRiver,findRoute,routePoint,visualTime} from './navigation.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 
 export function createWorld(host, labelsHost, getState, onSelect) {
-  let seed = 9271;
+  const map=getState().map||'valley'; let seed = MAPS[map].seed;
   const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#839d94');
@@ -25,7 +26,7 @@ export function createWorld(host, labelsHost, getState, onSelect) {
   const mat = color => {if(!mats.has(color))mats.set(color,new THREE.MeshStandardMaterial({color,roughness:.95,flatShading:true}));return mats.get(color);};
   const geometries = {box:new THREE.BoxGeometry(1,1,1),cone:new THREE.ConeGeometry(1,1,5),cylinder:new THREE.CylinderGeometry(1,1,1,8),sphere:new THREE.IcosahedronGeometry(1,0)};
   function mesh(parent,geometry,color,x,y,z,sx=1,sy=1,sz=1) {const m=new THREE.Mesh(typeof geometry==='string'?geometries[geometry]:geometry,mat(color));m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
-  const riverX = z => 3 + Math.sin(z*.12)*5 + Math.cos(z*.2)*1.5;
+  const riverX = z => mapRiver(z,map);
   function height(x,z) {
     const river=Math.abs(x-riverX(z));
     let h = .75+Math.sin(x*.32)*Math.cos(z*.22)*.45+Math.sin(x*.8+z*.4)*.13;
@@ -51,8 +52,9 @@ export function createWorld(host, labelsHost, getState, onSelect) {
     const geo=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),70,width,4,false);const r=new THREE.Mesh(geo,mat(color));r.receiveShadow=true;scene.add(r);return points;
   }
   const places=getState().places;
-  const roads=[['home','willow'],['home','oak'],['home','bandits'],['home','gold'],['gold','red'],['gold','ruins'],['willow','red']].map(([a,b])=>road(places.find(p=>p.id===a),places.find(p=>p.id===b)));
-  for(const z of [11,-10]){const x=riverX(z);mesh(scene,'box','#998564',x,.67,z,7,.4,1.6);for(const side of [-1,1]){mesh(scene,'box','#6c654e',x,1.23,z+side*.77,7,.25,.14);for(let j=-3;j<=3;j+=1.5)mesh(scene,'box','#6c654e',x+j,.78,z+side*.77,.15,1.2,.15);}for(let j=-3;j<3.5;j+=.35)mesh(scene,'box','#b1a383',x+j,.9,z,.055,.055,1.5);}
+  // Clear walking corridors through woods, without laying paths through the river.
+  const roads=[];for(let i=0;i<places.length;i++)for(let j=i+1;j<places.length;j++){const path=findRoute(places[i],places[j],places,map);if(path)roads.push(path);}
+  for(const z of [11,-10]){const x=riverX(z);mesh(scene,'box','#998564',x,.67,z,10,.4,1.6);for(const side of [-1,1]){mesh(scene,'box','#6c654e',x,1.23,z+side*.77,10,.25,.14);for(let j=-4.5;j<=4.5;j+=1.5)mesh(scene,'box','#6c654e',x+j,.78,z+side*.77,.15,1.2,.15);}for(let j=-4.5;j<4.8;j+=.35)mesh(scene,'box','#b1a383',x+j,.9,z,.055,.055,1.5);}
   const trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.11,.18,1.6,5),mat('#63583b'),850);
   const crowns=new THREE.InstancedMesh(new THREE.ConeGeometry(1,2.7,5),mat('#285846'),850);
   const tips=new THREE.InstancedMesh(new THREE.ConeGeometry(.7,2.1,5),mat('#3e7151'),850);
@@ -60,14 +62,14 @@ export function createWorld(host, labelsHost, getState, onSelect) {
   for(let i=0;i<2000&&trees<850;i++){
     const x=random()*81-40.5,z=random()*69-34.5;
     if(Math.abs(x-riverX(z))<4.3||places.some(p=>Math.hypot(x-p.x,z-p.z)<6)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<.9)))continue;
-    const n=Math.sin(x*.13+1)*Math.cos(z*.15);if(random()>(n+.9)*.58)continue;
+    const n=Math.sin(x*.13+1)*Math.cos(z*.15);if(random()>(n+.9)*.58*MAPS[map].forest)continue;
     const h=height(x,z),scale=.5+random()*.7;
     dummy.position.set(x,h+.6*scale,z);dummy.scale.setScalar(scale);dummy.rotation.y=random()*7;dummy.updateMatrix();trunk.setMatrixAt(trees,dummy.matrix);
     dummy.position.y=h+1.7*scale;dummy.updateMatrix();crowns.setMatrixAt(trees,dummy.matrix);
     dummy.position.y=h+2.55*scale;dummy.updateMatrix();tips.setMatrixAt(trees,dummy.matrix);trees++;
   }
   for(const t of [trunk,crowns,tips]){t.count=trees;t.castShadow=true;t.receiveShadow=true;scene.add(t);}
-  for(let i=0;i<45;i++){const x=-39+random()*78,z=-31+random()*8;if(Math.abs(x-riverX(z))<5||places.some(p=>Math.hypot(x-p.x,z-p.z)<7))continue;const scale=2+random()*5;const m=mesh(scene,new THREE.ConeGeometry(1,1,5),'#879189',x,height(x,z)+scale*.42,z,scale*.9,scale*1.5,scale*.75);m.rotation.y=random()*6;if(scale>4)mesh(scene,new THREE.ConeGeometry(1,1,5),'#d4d9c8',x,height(x,z)+scale*1.12,z,scale*.26,scale*.46,scale*.22);}
+  for(let i=0;i<45;i++){const x=-39+random()*78,z=-31+random()*8;if(Math.abs(x-riverX(z))<5||places.some(p=>Math.hypot(x-p.x,z-p.z)<7))continue;const scale=2+random()*(map==='hills'?7:5);const m=mesh(scene,new THREE.ConeGeometry(1,1,5),'#879189',x,height(x,z)+scale*.42,z,scale*.9,scale*1.5,scale*.75);m.rotation.y=random()*6;if(scale>4)mesh(scene,new THREE.ConeGeometry(1,1,5),'#d4d9c8',x,height(x,z)+scale*1.12,z,scale*.26,scale*.46,scale*.22);}
   for(let i=0;i<60;i++){const x=random()*80-40,z=random()*68-34;if(places.some(p=>Math.hypot(x-p.x,z-p.z)<5)||Math.abs(x-riverX(z))<3.4)continue;const sc=.3+random()*.6;mesh(scene,'sphere','#9a9c85',x,height(x,z)+sc*.3,z,sc,sc*.8,sc);}
   const flags=[],mills=[],settlements=new Map(),borderGroup=new THREE.Group();scene.add(borderGroup);
   function flag(parent,x,y,z,color){mesh(parent,'cylinder','#e0d0a6',x,y/2,z,.045,y,.045);const cloth=new THREE.Mesh(new THREE.PlaneGeometry(.85,.5,6,1),new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.8}));cloth.position.set(x+.43,y-.3,z);parent.add(cloth);flags.push(cloth);return cloth;}
@@ -87,15 +89,15 @@ export function createWorld(host, labelsHost, getState, onSelect) {
     for(const x of [-2.9,2.9])for(const z of [-2.5,2.5])tower(group,x,z,roof,.85);
     mesh(group,'box','#d4ceb2',0,1.9,-.7,2.35,3.5,2.1);mesh(group,'box','#e2d9ba',0,3.64,-.7,2.55,.2,2.3);
     const r=mesh(group,new THREE.ConeGeometry(2,1.8,4),roof,0,4.5,-.7,1,1,1);r.rotation.y=Math.PI/4;
-    tower(group,1.3,-1.2,roof,1.24);flag(group,1.3,6.2,-1.2,p.color);
+    tower(group,1.3,-1.2,roof,1.24);const banner=flag(group,1.3,6.2,-1.2,p.color);
     mesh(group,'box','#495a51',0,.8,2.725,1.2,1.6,.045);mesh(group,'box','#5c5b48',0,.2,3.2,1.7,.15,1.15);
     for(const x of [-.65,.65])mesh(group,'box','#506963',x,2.45,.363,.28,.66,.04);
     house(group,-1.6,-.1,.7,roof);
-    for(const [x,z,s] of [[-4.6,1,.8],[-3.8,4.1,.9],[-1.2,4.6,.8],[2.1,4.6,.85],[4.4,1.8,.85],[4.6,-1.1,.65]])house(group,x,z,s);
+    for(const [x,z,s] of [[-4.6,1,.8],[-3.8,4.1,.9],[-1.2,4.6,.8],[2.1,4.6,.85],[4.4,1.8,.85],[4.6,-1.1,.65]])house(group,x,z,s);return banner;
   }
-  function farm(parent,x,z){mesh(parent,'box','#9d9454',x,.04,z,3.7,.06,2.5);for(let i=-1.5;i<=1.5;i+=.35){const crop=mesh(parent,'box','#cec17a',x+i,.13,z,.18,.18,2.35);crop.receiveShadow=true;}for(const j of [-1,1])mesh(parent,'box','#827449',x,.25,z+j*1.3,3.9,.18,.08);}
+  function farm(parent,x,z){const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(.65);parent.add(g);mesh(g,'box','#6b4c2d',0,.05,0,3.7,.09,2.5);for(let i=-1.5;i<=1.5;i+=.45)for(let j=-1;j<=1;j+=.45){mesh(g,'cylinder','#e1c75d',i,.3,j,.035,.5,.035);mesh(g,'cone','#eac76a',i,.58,j,.095,.23,.095);}for(const j of [-1,1]){mesh(g,'box','#a58d61',0,.4,j*1.3,3.9,.09,.08);for(let i=-1.8;i<2;i+=.6)mesh(g,'box','#a58d61',i,.3,j*1.3,.08,.6,.08);}house(g,2.2,-.2,.65,'#b67944');}
   for(const p of places){const group=new THREE.Group();group.position.set(p.x,.87,p.z);scene.add(group);let placeFlag;
-    if(['capital','city'].includes(p.kind)){castle(group,p);group.scale.setScalar(p.id==='home'?1.04:.85);}
+    if(['capital','city'].includes(p.kind)){placeFlag=castle(group,p);group.scale.setScalar(p.id==='home'?1.04:.85);}
     else if(p.kind==='village'){
       for(const [x,z,s] of [[-1.7,0,1],[.2,1.3,.8],[1.7,-.8,1.1],[-.3,-2,.8]])house(group,x,z,s);farm(group,-3.8,2.6);farm(group,2.5,3.5);
       const mill=new THREE.Group();mill.position.set(-2,0,-2.3);group.add(mill);mesh(mill,'cylinder','#d6ceb1',0,1.1,0,.5,2.2,.5);mesh(mill,'cone','#6b6550',0,2.5,0,.78,.9,.78);const blades=new THREE.Group();blades.position.set(0,1.9,.59);for(let i=0;i<4;i++){const wing=mesh(blades,'box','#e8dbb5',0,.75,0,.22,1.5,.06);wing.geometry=wing.geometry.clone();wing.geometry.translate(0,.5,0);wing.position.y=0;wing.rotation.z=i*Math.PI/2;}mill.add(blades);mills.push(blades);placeFlag=flag(group,0,3,0,p.color);
@@ -103,12 +105,33 @@ export function createWorld(host, labelsHost, getState, onSelect) {
     else {for(let i=0;i<7;i++){const a=i/7*Math.PI*2;mesh(group,'cylinder','#b0b7a6',Math.cos(a)*2,1,Math.sin(a)*2,.3,2,.3);}mesh(group,'box','#a1aa96',0,.15,0,4.5,.25,4.5);mesh(group,'sphere','#465b57',0,.9,0,1.2,.8,1.2);}
     const ring=new THREE.Mesh(new THREE.RingGeometry(p.kind==='village'?5:6.2,p.kind==='village'?5.05:6.25,80),new THREE.MeshBasicMaterial({color:p.color,transparent:true,opacity:.6,side:THREE.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.set(p.x,1.1,p.z);borderGroup.add(ring);
     const label=document.createElement('button');label.className='place-label';label.dataset.id=p.id;label.setAttribute('aria-label',`Выбрать ${p.name}`);label.innerHTML=`<span class="place-dot"></span><span>${p.name}</span><small></small>`;label.style.setProperty('--faction',p.color);label.onclick=()=>onSelect(p.id);labelsHost.appendChild(label);
-    settlements.set(p.id,{group,label,ring,placeFlag});
+    settlements.set(p.id,{group,label,ring,placeFlag,owner:p.owner,flagY:placeFlag?.position.y,buildingGroup:null,buildingKey:''});
   }
-  farm(settlements.get('home').group,-5.8,-1.4);farm(settlements.get('home').group,-5.8,-4.3);
+  function showBuildings(v,buildings){
+    const key=JSON.stringify(buildings||{});if(v.buildingKey===key)return;v.buildingKey=key;if(v.buildingGroup)v.group.remove(v.buildingGroup);
+    const g=new THREE.Group();v.group.add(g);v.buildingGroup=g;const b=buildings||{};
+    if(b.farm){farm(g,-3.5,-3.6);if(b.farm>1)farm(g,3.8,-3.8);if(b.farm>2){mesh(g,'cylinder','#c6ac5e',-4.6,1.1,-1.8,.45,2.2,.45);}}
+    if(b.market){for(let i=0;i<b.market+1;i++){const x=-2+i*1.25;mesh(g,'box','#a2885e',x,.4,3.8,.9,.7,.6);mesh(g,'box',i%2?'#cead5d':'#6d9890',x,1.2,3.8,1.1,.15,.9);for(const dx of [-.4,.4])mesh(g,'box','#a2885e',x+dx,.9,3.8,.05,1.1,.05);}}
+    if(b.barracks){house(g,3.7,0,.9,'#586e83');for(let i=0;i<b.barracks;i++){mesh(g,'box','#6b543c',3.8+i*.2,.7,1.3,.06,1.3,.06);mesh(g,'box','#bfc3b2',3.8+i*.2,1.45,1.3,.04,.5,.04);}}
+    if(b.lumber){house(g,-4,0,.6);for(let i=0;i<b.lumber+2;i++){const log=mesh(g,'cylinder','#86643b',-4,.18,1.2+i*.25,.17,1.4,.17);log.rotation.z=Math.PI/2;}}
+    if(b.quarry){for(let i=0;i<b.quarry+2;i++)mesh(g,'sphere','#a2a69d',4.3,.25,-2+i*.35,.45,.35,.35);}
+    if(b.academy)house(g,-1.7,-3.5,.9,'#596780');
+    if(b.shrine){mesh(g,'cylinder','#a7bca5',2,1.1,-3,.5,2,.5);mesh(g,'sphere','#c1dbc7',2,2.3,-3,.3,.4,.3);}
+    if(b.walls)for(const x of [-2.9,2.9])mesh(g,'box','#dad3bd',x,2.3,0,.45,b.walls*.3,5);
+  }
+  for(const p of places)showBuildings(settlements.get(p.id),getState().settlements?.[p.id]?.buildings||(p.id===(getState().home||'home')?getState().buildings:null));
   const selectRing = new THREE.Mesh(new THREE.RingGeometry(5.65,5.8,100),new THREE.MeshBasicMaterial({color:'#f7df9d',side:THREE.DoubleSide,transparent:true,opacity:.92,depthWrite:false}));selectRing.rotation.x=-Math.PI/2;selectRing.position.y=1.13;scene.add(selectRing);
   const armyModels=new Map();
-  function armyModel(beast=false,color='#8bdcba'){const g=new THREE.Group();if(beast){mesh(g,'sphere','#334b43',0,1.2,0,1.5,1.1,2);mesh(g,'sphere','#435f51',0,1.8,1.6,.8,.65,.8);for(const x of [-1,1])for(const z of [-1,1])mesh(g,'box','#273d35',x,.5,z,.5,1,.5);for(const x of [-.5,.5])mesh(g,'cone','#dfc397',x,2.7,1.5,.18,1,.18);}else{for(let i=0;i<6;i++){const x=(i%3-1)*.5,z=Math.floor(i/3)*.65;mesh(g,'cylinder','#457d83',x,.45,z,.17,.7,.17);mesh(g,'sphere','#d7c6a6',x,.92,z,.16,.18,.16);mesh(g,'box','#bec6b7',x+.23,.67,z,.045,.75,.045);mesh(g,'box','#416c79',x-.17,.45,z+.12,.13,.4,.3);}flag(g,0,2.2,0,color);}scene.add(g);return g;}
+  function armyModel(beast=false,color='#8bdcba'){
+    const g=new THREE.Group();g.userData.legs=[];
+    if(beast){mesh(g,'sphere','#334b43',0,1.2,0,1.5,1.1,2);mesh(g,'sphere','#435f51',0,1.8,1.6,.8,.65,.8);for(const x of [-1,1])for(const z of [-1,1])mesh(g,'box','#273d35',x,.5,z,.5,1,.5);}
+    else{for(let i=0;i<12;i++){const x=(i%3-1)*.52,z=Math.floor(i/3)*.6;
+      mesh(g,'box',color,x,.62,z,.29,.44,.22);mesh(g,'sphere','#d7c6a6',x,.98,z,.15,.16,.15);mesh(g,'sphere','#aeb7b0',x,1.09,z,.17,.12,.17);
+      for(const side of [-1,1]){const leg=mesh(g,'box','#3b4a43',x+side*.09,.27,z,.11,.4,.12);g.userData.legs.push({leg,side,phase:i*.45});}
+      mesh(g,'box','#8e7351',x+.22,.85,z,.05,1.3,.05);mesh(g,'cone','#cbd1ca',x+.22,1.57,z,.08,.24,.08);mesh(g,'box',color,x-.23,.62,z+.12,.08,.45,.3);
+    }g.userData.banner=flag(g,0,2.6,.5,color);}scene.add(g);return g;
+  }
+  function removeArmy(id,g){scene.remove(g);g.userData.label?.remove();const i=flags.indexOf(g.userData.banner);if(i>=0)flags.splice(i,1);armyModels.delete(id);}
   let selection=getState().home||'home',frame=0,frameId,disposed=false;
   const projected=new THREE.Vector3();
   const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),plane=new THREE.Plane(new THREE.Vector3(0,1,0),-.85),intersection=new THREE.Vector3();
@@ -118,14 +141,28 @@ export function createWorld(host, labelsHost, getState, onSelect) {
   function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}window.addEventListener('resize',resize);
   function render(){if(disposed)return;frameId=requestAnimationFrame(render);frame++;const s=getState();controls.update();controls.target.x=THREE.MathUtils.clamp(controls.target.x,-28,28);controls.target.z=THREE.MathUtils.clamp(controls.target.z,-22,22);
     const w=host.clientWidth,h=host.clientHeight;
-    for(const p of s.places){const v=settlements.get(p.id);projected.set(p.x, p.kind==='city'||p.kind==='capital'?7.5:4.6,p.z).project(camera);v.label.style.transform=`translate(-50%,-100%) translate(${(projected.x+1)*w/2}px,${(-projected.y+1)*h/2}px)`;v.label.hidden=projected.z>1||projected.z<-1;v.label.classList.toggle('selected',p.id===selection);const color=p.owner==='player'?'#89dfbc':p.color;v.label.style.setProperty('--faction',color);v.ring.material.color.set(color);const relation=s.relations[p.id];v.label.querySelector('small').textContent=p.owner==='player'?(p.id===(s.home||'home')?'ВАША СТОЛИЦА':'ВАШИ ЗЕМЛИ'):relation?.status==='alliance'?'СОЮЗНИК':relation?.status==='war'?'ВОЙНА':p.kind==='camp'?'УГРОЗА':p.kind==='ruins'?'ДИКИЕ ЗЕМЛИ':p.kind==='village'?'ДЕРЕВНЯ':'НЕЗАВИСИМОЕ ГОСУДАРСТВО';}
+    for(const p of s.places){const v=settlements.get(p.id);projected.set(p.x, p.kind==='city'||p.kind==='capital'?7.5:4.6,p.z).project(camera);v.label.style.transform=`translate(-50%,-100%) translate(${(projected.x+1)*w/2}px,${(-projected.y+1)*h/2}px)`;v.label.hidden=projected.z>1||projected.z<-1;v.label.classList.toggle('selected',p.id===selection);const color=p.color;
+      if(v.owner!==p.owner){v.owner=p.owner;v.captureAt=performance.now();}
+      if(v.placeFlag){v.placeFlag.material.color.set(color);const transition=(performance.now()-(v.captureAt||-10000))/1800;v.placeFlag.position.y=v.flagY-(transition<1?Math.sin(transition*Math.PI)*1.7:0);}
+      showBuildings(v,s.settlements?.[p.id]?.buildings||(p.id===(s.home||'home')?s.buildings:null));v.label.style.setProperty('--faction',color);v.ring.material.color.set(color);const relation=s.relations[p.id];v.label.querySelector('small').textContent=p.owner==='player'?(p.id===(s.home||'home')?'ВАША СТОЛИЦА':'ВАШИ ЗЕМЛИ'):relation?.status==='alliance'?'СОЮЗНИК':relation?.status==='war'?'ВОЙНА':p.kind==='camp'?'УГРОЗА':p.kind==='ruins'?'ДИКИЕ ЗЕМЛИ':p.kind==='village'?'ДЕРЕВНЯ':'НЕЗАВИСИМОЕ ГОСУДАРСТВО';}
     const p=s.places.find(p=>p.id===selection);selectRing.position.set(p.x,1.13,p.z);selectRing.material.opacity=.65+Math.sin(frame*.025)*.2;
     for(const f of flags){const a=f.geometry.attributes.position;for(let i=0;i<a.count;i++)a.setZ(i,Math.sin(frame*.04+a.getX(i)*5)*.08*(a.getX(i)+.45));a.needsUpdate=true;}
     for(const m of mills)m.rotation.z=frame*.008;
     for(const l of waterLines)l.material=mat('#8ec4bf');
-    const active=new Set();
-    for(const m of [...(s.mapMarches||s.marches),...(s.beast?[{...s.beast,id:'beast',beast:true}]:[])]){active.add(m.id);if(!armyModels.has(m.id))armyModels.set(m.id,armyModel(m.beast,s.realmColors?.[m.owner]||'#8bdcba'));const g=armyModels.get(m.id),p=s.places.find(p=>p.id===m.target);let t=THREE.MathUtils.clamp((s.time-m.start)/(m.end-m.start),0,1);if(m.returning)t=1-t;const origin=s.places.find(p=>p.id===(m.origin||s.home||'home'));const x=THREE.MathUtils.lerp(origin.x,p.x,t),z=THREE.MathUtils.lerp(origin.z,p.z,t);g.position.set(x,Math.max(.8,height(x,z))+.1,z);g.rotation.y=Math.atan2(p.x-origin.x,p.z-origin.z)+(m.returning?Math.PI:0);}
-    for(const [id,g]of armyModels)if(!active.has(id)){scene.remove(g);armyModels.delete(id);}
+    const active=new Set(),now=performance.now(),time=s.online?visualTime(s.time,s.receivedAt||now,now):s.time;
+    for(const m of [...(s.mapMarches||s.marches),...(s.beast?[{...s.beast,id:'beast',beast:true}]:[])]){
+      active.add(m.id);if(!armyModels.has(m.id))armyModels.set(m.id,armyModel(m.beast,s.realmColors?.[m.owner]||'#8bdcba'));
+      const g=armyModels.get(m.id);if(!g.userData.label){g.userData.label=document.createElement('div');g.userData.label.className='army-label';labelsHost.append(g.userData.label);}const p=s.places.find(p=>p.id===m.target),origin=s.places.find(p=>p.id===(m.origin||s.home||'home'));
+      const path=m.route||findRoute(origin,p,places,map);if(!path)continue;
+      let t=m.battle?1:THREE.MathUtils.clamp((time-m.start)/(m.end-m.start),0,1);if(m.returning)t=1-t;
+      const point=routePoint(path,t);const destination=new THREE.Vector3(point.x,Math.abs(point.x-riverX(point.z))<3.6?1.02:Math.max(.8,height(point.x,point.z))+.1,point.z);if(g.userData.placed)g.position.lerp(destination,Math.min(1,(now-(g.userData.at||now))/1000*12));else g.position.copy(destination);g.userData.placed=true;g.userData.at=now;
+      const label=g.userData.label;label.textContent=`${m.beast?'Древний зверь':s.realmNames?.[m.owner]||'Армия'} · ${m.beast?'':Object.values(m.troops||{}).reduce((a,b)=>a+b,0)+' воинов · '}${m.battle?'БОЙ':m.returning?'возвращение':Math.max(0,Math.ceil(m.end-s.time))+' сек.'}`;label.style.borderColor=s.realmColors?.[m.owner]||'#e0c27c';projected.copy(g.position).add(new THREE.Vector3(0,3,0)).project(camera);label.style.transform=`translate(-50%,-100%) translate(${(projected.x+1)*w/2}px,${(-projected.y+1)*h/2}px)`;label.hidden=projected.z>1||projected.z<-1;
+      const angle=point.angle+(m.returning?Math.PI:0);g.rotation.y+=Math.atan2(Math.sin(angle-g.rotation.y),Math.cos(angle-g.rotation.y))*.12;
+      for(const leg of g.userData.legs)leg.leg.rotation.x=m.battle?0:Math.sin(time*9+leg.phase)*.45*leg.side;
+      g.userData.banner?.material.color.set(m.battle?'#ef9577':s.realmColors?.[m.owner]||'#8bdcba');
+    }
+    for(const p of s.places){const data=s.settlements?.[p.id],count=data&&!data.eliminated&&data.owner===p.owner?data.troops:Object.values(p.garrison||{}).reduce((a,b)=>a+b,0),id='guard-'+p.id;if(count>0){active.add(id);if(!armyModels.has(id))armyModels.set(id,armyModel(false,p.color));const g=armyModels.get(id);g.position.set(p.x,p.kind==='village'?1:1.05,p.z+6);g.scale.setScalar(.78);g.userData.banner?.material.color.set(p.color);}}
+    for(const [id,g]of armyModels)if(!active.has(id))removeArmy(id,g);
     renderer.render(scene,camera);
   }
   render();
