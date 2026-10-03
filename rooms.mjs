@@ -1,3 +1,4 @@
+import {troopsAt,spirit,prepareBattle,advanceBattle,tickBeast} from './warfare.mjs';
 import {randomBytes} from 'node:crypto';
 import {MAPS,layoutPlaces,findRoute,routeLength} from './dist/navigation.js';
 import {freshGame,act,tick,power,totalTroops,PLACES,BUILDINGS,UNITS,TECHS} from './dist/game.js';
@@ -31,11 +32,12 @@ export class Room {
       const p=this.places.find(p=>p.id===m.home);Object.assign(p,{owner:m.id,kind:'city',ruler:m.name,color:colors[i]});
       return s;
     });
-    this.phase='playing';this.refresh();return {ok:true,message:'Партия началась'};
+    for(const p of this.places){const a=this.actors.find(a=>a.home===p.id);p.buildings=a?a.buildings:Object.fromEntries(Object.keys(BUILDINGS).map(k=>[k,0]));p.morale=80;if(!a)p.garrison={spear:Math.max(1,Math.round(p.defense/4))};}this.phase='playing';this.refresh();return {ok:true,message:'Партия началась'};
   }
   actor(session){const m=this.members.find(m=>m.session===session);return this.actors.find(s=>s.playerId===m?.id);}
   refresh(){
-    for(const p of this.places){const owner=this.actors.find(a=>a.playerId===p.owner);if(owner){p.ruler=this.member(owner).name;p.color=colors[this.members.findIndex(m=>m.id===p.owner)];if(p.id!==owner.home&&p.garrison)p.defense=power(p.garrison,owner);} }
+    for(const p of this.places)if(!this.actors.some(a=>a.playerId===p.owner)&&p.garrison)p.defense=Math.max(0,Math.round(totalTroops(p.garrison)*4*spirit(p.morale)*(1-(p.wallDamage||0))));
+    for(const p of this.places){const owner=this.actors.find(a=>a.playerId===p.owner);if(owner){p.ruler=this.member(owner).name;p.color=colors[this.members.findIndex(m=>m.id===p.owner)];if(p.id!==owner.home&&p.garrison)p.defense=Math.round((power(p.garrison,owner)*spirit(p.morale)+(p.buildings?.walls||0)*100)*(1-(p.wallDamage||0)));} }
     for(const s of this.actors){
       s.places=this.places;
       const previous=s.relations;s.relations={};
@@ -44,7 +46,7 @@ export class Room {
         if(!owner&&!['city','village'].includes(p.kind)){delete s.relations[p.id];continue;}
         s.relations[key]??=(previous[key]?.group===key?previous[key]:{status:'peace',trade:false});s.relations[key].group=key;s.relations[p.id]=s.relations[key];
       }
-      if(!s.eliminated){const p=this.places.find(p=>p.id===s.home);p.defense=Math.max(20,power(s.troops,s)+s.buildings.walls*100-(s.siegeDamage||0));}
+      if(!s.eliminated){const p=this.places.find(p=>p.id===s.home);p.defense=Math.max(5,Math.round((power(s.troops,s)*spirit(p.morale)+s.buildings.walls*100)*(1-(p.wallDamage||0)))-(s.siegeDamage||0));}
     }
   }
   command(session,type,args={}){
@@ -62,8 +64,9 @@ export class Room {
       this.offers=this.offers.filter(x=>x!==o);if(type==='reject')return {ok:true,message:'Предложение отклонено'};
       return this.treaty(this.actors.find(a=>a.playerId===o.from),s,o.action);
     }
-    if(!['build','research','recruit','diplomacy','trade','march','reinforce','recall','summon'].includes(type))return fail('Неизвестное действие');
+    if(!['build','research','recruit','diplomacy','trade','march','reinforce','recall','summon','retreat'].includes(type))return fail('Неизвестное действие');
     this.refresh();
+    if(type==='retreat'){const m=s.marches.find(m=>m.id===args.id&&m.battle&&!m.returning);if(!m)return fail('Эта армия не участвует в бою');m.battle=false;m.returning=true;m.start=this.time;m.end=this.time+m.duration;m.morale=Math.max(5,(m.morale??80)-10);note(s,'Армия отступает к месту отправления.','bad');return {ok:true,message:'Приказ об отступлении принят'};}
     if(type==='recall'){const p=this.places.find(p=>p.id===args.target);if(!p||p.owner!==s.playerId||p.id===s.home||!totalTroops(p.garrison||{}))return fail('В этом владении нет гарнизона');const route=findRoute(p,this.places.find(p=>p.id===s.home),this.places,this.map);if(!route)return fail('Нет безопасного пути');const duration=Math.max(30,routeLength(route)*1.4);s.marches.push({id:`${s.playerId}-${s.nextId++}`,owner:s.playerId,origin:p.id,target:s.home,kind:'recall',troops:p.garrison,route,start:this.time,end:this.time+duration,duration,returning:false});p.garrison={};this.refresh();return {ok:true,message:'Гарнизон возвращается в столицу'};}
     if(type==='diplomacy'){
       const p=this.places.find(p=>p.id===args.target), other=this.actors.find(a=>a.playerId===p?.owner);
@@ -79,11 +82,12 @@ export class Room {
       }
     }
     let route;
-    if(type==='march'||type==='reinforce'){const target=this.places.find(p=>p.id===args.target);if(!target)return fail('Неизвестная цель');route=findRoute(this.places.find(p=>p.id===s.home),target,this.places,this.map);if(!route)return fail('Нет безопасного пути к поселению');}
+    if(type==='march'||type==='reinforce'){const target=this.places.find(p=>p.id===args.target);if(!target)return fail('Неизвестная цель');const origin=this.places.find(p=>p.id===(args.source||s.home));if(!origin||origin.owner!==s.playerId)return fail('Источник армии должен принадлежать вам');route=findRoute(origin,target,this.places,this.map);if(!route)return fail('Нет безопасного пути к поселению');}
     const r=act(s,type,args);
-    if(r.ok&&(type==='march'||type==='reinforce')){const m=s.marches.at(-1);m.id=`${s.playerId}-${m.id}`;m.origin=s.home;m.owner=s.playerId;m.route=route;m.kind=type;m.duration=Math.max(30,routeLength(route)*1.4);m.end=m.start+m.duration;const target=this.places.find(p=>p.id===m.target),defender=this.actors.find(a=>a.playerId===target.owner);if(defender&&defender!==s)note(defender,`${this.member(s).name}: ${totalTroops(m.troops)} воинов идут к ${target.name}. До прибытия ${Math.ceil(m.duration)} сек.`,'bad');r.message=`${type==='reinforce'?'Подкрепление':'Армия'} в пути: ${Math.ceil(m.duration)} сек.`;}
+    if(r.ok&&(type==='march'||type==='reinforce')){const m=s.marches.at(-1);m.id=`${s.playerId}-${m.id}`;m.origin=args.source||s.home;m.owner=s.playerId;m.route=route;m.kind=type;m.duration=Math.max(30,routeLength(route)*1.4);m.end=m.start+m.duration;const target=this.places.find(p=>p.id===m.target),defender=this.actors.find(a=>a.playerId===target.owner);if(defender&&defender!==s)note(defender,`${this.member(s).name}: ${totalTroops(m.troops)} воинов идут к ${target.name}. До прибытия ${Math.ceil(m.duration)} сек.`,'bad');r.message=`${type==='reinforce'?'Подкрепление':'Армия'} в пути: ${Math.ceil(m.duration)} сек.`;}
     this.refresh();this.revision++;return r;
   }
+  announce(s,text,kind){note(s,text,kind);}
   member(s){return this.members.find(m=>m.id===s.playerId);}
   setRelation(a,b,status,trade){a.relations[b.home]={status,trade,group:b.home};b.relations[a.home]={status,trade,group:a.home};this.refresh();}
   treaty(a,b,action){
@@ -108,27 +112,28 @@ export class Room {
     if(this.phase!=='playing'||this.winner)return;
     this.time+=dt;this.refresh();
     for(const s of this.actors){if(s.eliminated)continue;tick(s,dt);s.time=this.time;
-      if(s.beast&&s.beast.end<=this.time){const p=this.places.find(p=>p.id===s.beast.target);if(p&&p.owner!==s.playerId&&s.relations[p.id]?.status==='war'){const enemy=this.actors.find(a=>a.playerId===p.owner&&a.home===p.id);if(enemy)enemy.siegeDamage=(enemy.siegeDamage||0)+p.defense*.8;else p.defense=Math.max(20,Math.round(p.defense*.2));note(s,`Древний зверь разрушил стены: ${p.name}`,'good');}s.beast=null;}
+      tickBeast(this,s,dt);
+      for(const p of this.places.filter(p=>p.owner===s.playerId))if(!this.actors.some(a=>a.marches.some(m=>m.battle&&m.target===p.id))&&!this.actors.some(a=>a.beast?.battle&&a.beast.target===p.id))p.morale=Math.max(5,Math.min(100,(p.morale??80)+(s.resources.food>0?.15:-.5)*dt));
+      for(const m of s.marches)if(m.battle)advanceBattle(this,s,m,this.places.find(p=>p.id===m.target));
     }
     this.refresh();
     for(const s of this.actors){if(s.eliminated)continue;
       const arrived=s.marches.filter(m=>m.end<=this.time);s.marches=s.marches.filter(m=>m.end>this.time);
       for(const m of arrived){if(s.eliminated)break;
-        if(m.returning||m.kind==='recall'){for(const [k,n]of Object.entries(m.troops))s.troops[k]=(s.troops[k]||0)+n;note(s,`${totalTroops(m.troops)} воинов вернулись в столицу.`);continue;}
+        if(m.returning||m.kind==='recall'){const destination=this.places.find(p=>p.id===(m.kind==='recall'?m.target:m.origin));const target=destination?.owner===s.playerId?destination:this.places.find(p=>p.id===s.home);const troops=troopsAt(this,target);for(const [k,n]of Object.entries(m.troops))troops[k]=(troops[k]||0)+n;note(s,`${totalTroops(m.troops)} воинов вернулись: ${target.name}.`);continue;}
         const p=this.places.find(p=>p.id===m.target);
-        if(m.kind==='reinforce'&&p.owner===s.playerId){p.garrison??={};for(const [k,n]of Object.entries(m.troops))p.garrison[k]=(p.garrison[k]||0)+n;note(s,`${p.name}: прибыли ${totalTroops(m.troops)} защитников.`,'good');continue;}
+        if(m.kind==='reinforce'&&p.owner===s.playerId){const guard=troopsAt(this,p);for(const [k,n]of Object.entries(m.troops))guard[k]=(guard[k]||0)+n;note(s,`${p.name}: прибыли ${totalTroops(m.troops)} защитников.`,'good');continue;}
         if(p.owner===s.playerId||(s.relations[p.id]&&s.relations[p.id].status!=='war')){s.marches.push({...m,returning:true,start:this.time,end:this.time+m.duration});continue;}
-        if(!m.battle){m.battle=true;m.battleAt=this.time;m.end=this.time+12;s.marches.push(m);note(s,`Сражение за ${p.name} началось. Исход через 12 секунд.`,'bad');continue;}
-        this.refresh();const force=power(m.troops,s,p),def=p.defense,win=force>=def,ratio=force/Math.max(1,def);
-        const lost=win?Math.min(.48,.3/Math.max(.3,ratio)):Math.min(.9,.48/Math.max(.3,ratio));
-        const survivors=Object.fromEntries(Object.entries(m.troops).map(([k,n])=>[k,Math.max(0,n-Math.ceil(n*lost))]));
+        if(!m.battle){prepareBattle(this,s,m,p);s.marches.push(m);note(s,`Сражение за ${p.name} началось. Исход через 12 секунд.`,'bad');continue;}
+        this.refresh();const force=m.combat.force,def=m.combat.defense,win=m.combat.win&&!m.routed&&totalTroops(m.troops)>0;
+        const survivors={...m.troops};
         const defender=this.actors.find(a=>a.playerId===p.owner&&a.home===p.id);
         if(win){
           if(defender){defender.eliminated=true;defender.troops={};defender.marches=[];defender.queue=[];defender.ritual=null;defender.beast=null;defender.defeat={attacker:this.member(s).name,force,defense:def,place:p.name,time:this.time};note(defender,`${this.member(s).name} захватил вашу столицу: атака ${force}, ваша оборона ${def}. Правление завершено.`,'bad');for(const land of this.places)if(land.owner===defender.playerId)land.owner=s.playerId;}
-          p.owner=s.playerId;p.garrison={};{for(const [k,n]of Object.entries(survivors)){const guard=Math.floor(n*.35);p.garrison[k]=guard;survivors[k]-=guard;}}p.defense=power(p.garrison,s);s.resources.gold+=p.kind==='city'?700:p.kind==='camp'?380:200;s.resources.wood+=90;s.reputation=Math.max(0,s.reputation+(p.kind==='village'?-15:p.kind==='camp'?8:-5));note(s,`Победа! ${p.name} присоединён к вашей державе.`,'good');
+          p.owner=s.playerId;p.morale=55;p.garrison={};{for(const [k,n]of Object.entries(survivors)){const guard=Math.floor(n*.35);p.garrison[k]=guard;survivors[k]-=guard;}}p.defense=power(p.garrison,s);s.resources.gold+=p.kind==='city'?700:p.kind==='camp'?380:200;s.resources.wood+=90;s.reputation=Math.max(0,s.reputation+(p.kind==='village'?-15:p.kind==='camp'?8:-5));note(s,`Победа! ${p.name} присоединён к вашей державе.`,'good');
         }else{
-          if(defender){const loss=Math.min(.7,force*.35/Math.max(1,def));for(const k of Object.keys(defender.troops))defender.troops[k]=Math.max(0,defender.troops[k]-Math.ceil(defender.troops[k]*loss));note(defender,`Отражена атака ${this.member(s).name} у столицы.`,'good');}
-          else if(p.garrison){for(const k of Object.keys(p.garrison))p.garrison[k]=Math.max(0,p.garrison[k]-Math.ceil(p.garrison[k]*Math.min(.7,force*.35/Math.max(1,def))));}else p.defense=Math.max(25,Math.round(def-force*.35));note(s,`Поражение у ${p.name}. Выжившие отступают.`,'bad');
+          if(defender)note(defender,`Отражена атака ${this.member(s).name} у столицы.`,'good');
+          note(s,`Поражение у ${p.name}. Выжившие отступают.`,'bad');
         }
         if(totalTroops(survivors))s.marches.push({...m,battle:false,troops:survivors,returning:true,start:this.time,end:this.time+m.duration});
       }
@@ -164,7 +169,8 @@ export class Room {
     state.realmId=s.playerId;state.realmNames=Object.fromEntries(this.members.map(m=>[m.id,m.name]));
     state.places=state.places.map(p=>({...p,owner:p.owner===s.playerId?'player':p.owner}));
     state.mapMarches=this.actors.flatMap(a=>a.marches.map(m=>({...m,owner:a.playerId})));state.playerId='player';
-    state.settlements=Object.fromEntries(this.actors.map(a=>[a.home,{owner:a.playerId===s.playerId?'player':a.playerId,buildings:{...a.buildings},troops:totalTroops(a.troops),eliminated:a.eliminated}]));
+    state.settlements=Object.fromEntries(this.places.map(p=>[p.id,{owner:p.owner===s.playerId?'player':p.owner,buildings:{...p.buildings},troops:totalTroops(troopsAt(this,p)),composition:{...troopsAt(this,p)},morale:p.morale??80,queue:p.owner===s.playerId?s.queue.filter(q=>(q.settlement||s.home)===p.id):[]} ]));
+    state.mapBeasts=this.actors.filter(a=>a.beast?.id).map(a=>({...a.beast}));
     state.receivedAt=0;state.matchWinner=this.winner;state.realmColors=Object.fromEntries(this.members.map((m,i)=>[m.id,colors[i]]));
     meta.state=state;meta.self=member.id;meta.offers=this.offers.filter(o=>o.to===member.id).map(o=>({...o,name:this.members.find(m=>m.id===o.from)?.name}));return meta;
   }

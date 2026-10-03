@@ -3,8 +3,8 @@
   "durationSeconds": 20,
   "requests": 160,
   "failures": 0,
-  "peakServerRssMB": 60,
-  "cpuPercentOfOneCore": 0.77,
-  "jsonOutboundKBPerSecond": 27.95,
+  "peakServerRssMB": 62,
+  "cpuPercentOfOneCore": 0.3,
+  "jsonOutboundKBPerSecond": 51.35,
   "note": "Local single-process benchmark, not a guarantee for other hardware or hostings; excludes browser 3D and tunnel."
 }
