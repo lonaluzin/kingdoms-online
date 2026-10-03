@@ -27,3 +27,6 @@ test('strong garrison can kill the beast and receive reward without a capture',(
 test('troop types have proportional visible formations with a bounded large-army budget',()=>{
  assert.deepEqual(formation({sword:5,spear:5}).map(f=>f.type),['sword','spear']);assert.equal(formation({sword:20,spear:10,archer:15}).length,9);assert.equal(formation({knight:1})[0].type,'knight');assert.ok(formation({sword:100000,spear:10000,archer:1000}).length<=96);
 });
+test('victory recap distinguishes casualties from troops left guarding captured land',()=>{
+ const r=setup(),s=r.actor('a');r.command('a','march',{target:'bandits',fraction:.75});const m=s.marches[0],start=totalTroops(m.troops);advance(r,m.duration+12.5);const returning=s.marches.find(m=>m.returning);assert.equal(returning.outcome,'victory');assert.equal(returning.casualties+returning.garrisonLeft+totalTroops(returning.troops),start);assert.equal(returning.garrisonLeft,totalTroops(r.places.find(p=>p.id==='bandits').garrison));
+});
