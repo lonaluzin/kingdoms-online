@@ -1,0 +1,11 @@
+{
+  "url": "https://kingdoms-online.onrender.com/",
+  "repository": "https://github.com/lonaluzin/kingdoms-online",
+  "dashboard": "https://dashboard.render.com/web/srv-db06qnc9v7es73a5js5g",
+  "provider": "Render",
+  "plan": "free",
+  "deployedCommit": "0311f342617e506662079278610fa406d025619e",
+  "verifiedOn": "2026-10-03",
+  "checks": ["3D browser game", "two independent HTTP clients", "bots", "private economies", "accepted diplomacy", "static assets"],
+  "limitations": ["Sleeps after inactivity", "Rooms are lost on restart", "Public repository deployment is manual"]
+}
