@@ -6,3 +6,7 @@
 @media(max-width:760px){#threat-alert{top:112px;right:8px;max-width:260px;padding:12px}.world-heading{display:none}#audio-settings{right:8px;top:90px}#audio-toggle{width:28px}}
 
 .army-label{position:absolute;top:0;left:0;z-index:3;background:#142b25ed;color:#f7ebcf;border:1px solid #dfbf72;border-radius:14px;padding:5px 9px;font-size:11px;white-space:nowrap;box-shadow:0 3px 9px #0004;pointer-events:none}.army-label[hidden]{display:none}.in-menu .army-label{display:none}
+
+.army-label{pointer-events:auto;cursor:pointer;z-index:3;font:600 10px Georgia,serif;background:#243d35e8;color:#f0e4c1;padding:5px 8px;border:1px solid #e0c27c;border-radius:5px}.army-label:hover{background:#385b4f}.guard-label{font-size:9px;opacity:.9}#beast-target{display:block;max-width:100%;margin:12px 0}.event-card .stat-line{gap:12px}.event-card .icon{width:18px;height:18px}
+
+.guard-label{z-index:2}

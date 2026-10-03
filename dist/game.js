@@ -5,7 +5,7 @@ export const BUILDINGS = {
   quarry: { name: 'Каменоломня', icon: 'mountain', text: 'Камень для крепостей и великих городов.', effect: '+60 камня / мин', cost: { gold: 140, wood: 120 }, income: { stone: 60 } },
   market: { name: 'Рынок', icon: 'coins', text: 'Купцы наполняют королевскую казну.', effect: '+100 золота / мин', cost: { gold: 200, wood: 160, stone: 80 }, income: { gold: 100 } },
   barracks: { name: 'Казармы', icon: 'swords', text: 'Открывают тяжёлую пехоту и рыцарей.', effect: 'Новые войска · найм быстрее', cost: { gold: 260, wood: 200, stone: 120 }, income: {} },
-  walls: { name: 'Крепостные стены', icon: 'shield', text: 'Защищают столицу от вражеских набегов.', effect: '+100 защиты столицы', cost: { gold: 180, wood: 100, stone: 240 }, income: {} },
+  walls: { name: 'Крепостные стены', icon: 'shield', text: 'Защищают поселение от вражеских набегов.', effect: '+100 защиты поселения', cost: { gold: 180, wood: 100, stone: 240 }, income: {} },
   academy: { name: 'Академия', icon: 'book', text: 'Знания открывают новые возможности.', effect: 'Открывает исследования', cost: { gold: 300, wood: 180, stone: 180 }, income: {} },
   shrine: { name: 'Древнее святилище', icon: 'flame', text: 'Здесь ещё помнят имена древних зверей.', effect: 'Открывает ритуал призыва', cost: { gold: 650, wood: 200, stone: 350 }, income: {} },
 };
@@ -65,42 +65,48 @@ export function income(s) {
   if(s.map==='forest')r.wood+=25;else if(s.map==='hills')r.stone+=25;else if(s.map==='valley')r.food+=25;
   for (const [key,b] of Object.entries(BUILDINGS)) for (const [res,v] of Object.entries(b.income)) r[res] += v * s.buildings[key];
   r.gold += Object.entries(s.relations).filter(([k,r])=>!r.group||r.group===k).map(([,r])=>r).filter(x => x.trade && x.status !== 'war').length * 65;
-  for (const p of s.places) if (p.owner === (s.playerId || 'player') && p.id !== (s.home || 'home')) { r.gold += 30; r[p.kind === 'village' ? 'food' : 'stone'] += 45; }
+  for (const p of s.places) if (p.owner === (s.playerId || 'player') && p.id !== (s.home || 'home')) { for(const [key,b] of Object.entries(BUILDINGS))for(const [res,v] of Object.entries(b.income))r[res]+=v*(p.buildings?.[key]||0); r.gold += 30; r[p.kind === 'village' ? 'food' : 'stone'] += 45; }
   r.food *= 1 + s.techs.harvest * .25;
   if (s.events.some(e => e.type === 'drought' && e.end > s.time)) r.food *= .45;
   r.food -= s.places.filter(p=>p.owner===(s.playerId||'player')).reduce((n,p)=>n+totalTroops(p.garrison||{})*.6,0);
   r.food -= totalTroops(s.troops) * .6 + s.marches.reduce((n,m) => n + totalTroops(m.troops) * .6, 0);
   return r;
 }
-export const costAt = (base, level = 0, count = 1) => Object.fromEntries(Object.entries(base).map(([k,v]) => [k,Math.ceil(v * (1 + level * .6) * count)]));
+export const costAt = (base, level = 0, count = 1) => Object.fromEntries(Object.entries(base).map(([k,v]) => [k,Math.ceil(v * (10 + level * 6) * count / 10)]));
 export const canPay = (s,cost) => Object.entries(cost).every(([k,v]) => s.resources[k] >= v);
 function pay(s,cost) { for (const [k,v] of Object.entries(cost)) s.resources[k] -= v; }
 function log(s,text,kind='info') { s.logs.unshift({ time: s.time, text, kind }); s.logs = s.logs.slice(0,60); }
 const fail = message => ({ ok: false, message });
 export function act(s, type, args = {}) {
+  const localId=args.settlement||args.source||s.home||'home', local=s.places.find(p=>p.id===localId);
+  const localAction=['build','recruit','research','march','reinforce','summon'].includes(type);
+  if(s.online&&(localAction||args.source!==undefined||args.settlement!==undefined)&&(!local||local.owner!==s.playerId))return fail('Выберите своё поселение');
+  const buildings=s.online&&localId!==s.home?(local.buildings??=Object.fromEntries(Object.keys(BUILDINGS).map(k=>[k,0]))):s.buildings;
+  const troops=s.online&&localId!==s.home?(local.garrison??={}):s.troops;
+  const localQueue=s.queue.filter(q=>(q.settlement||s.home||'home')===localId);
   if (s.victory && type !== 'continue') return fail('Эта летопись завершена. Продолжите игру или начните новую.');
   if (type === 'continue') { s.flags.won = true; s.victory = null; s.speed = 1; return { ok: true, message: 'История продолжается' }; }
   if (type === 'build' || type === 'research') {
-    const catalog = type === 'build' ? BUILDINGS : TECHS, levels = type === 'build' ? s.buildings : s.techs, item = catalog[args.key];
+    const catalog = type === 'build' ? BUILDINGS : TECHS, levels = type === 'build' ? buildings : s.techs, item = catalog[args.key];
     if (!item) return fail('Неизвестное улучшение');
-    if (type === 'research' && !s.buildings.academy) return fail('Сначала постройте академию');
+    if (type === 'research' && !buildings.academy) return fail('Сначала постройте академию');
     if (levels[args.key] >= 3) return fail('Достигнут максимальный уровень');
-    if (s.queue.some(q => q.type === type)) return fail(type === 'build' ? 'Строители уже заняты' : 'Учёные уже заняты');
+    if ((type==='build'?localQueue:s.queue).some(q => q.type === type)) return fail(type === 'build' ? 'Строители уже заняты' : 'Учёные уже заняты');
     const cost = costAt(item.cost, levels[args.key]);
     if (!canPay(s,cost)) return fail('Недостаточно ресурсов');
-    pay(s,cost); s.queue.push({ id: s.nextId++, type, key: args.key, start: s.time, end: s.time + 16 + levels[args.key] * 10 });
+    pay(s,cost); s.queue.push({ id: s.nextId++, type, settlement:localId, key: args.key, start: s.time, end: s.time + 16 + levels[args.key] * 10 });
     log(s,`${item.name}: ${type === 'build' ? 'строительство' : 'исследование'} начато.`);
     return { ok: true, message: `${item.name} — работа началась` };
   }
   if (type === 'recruit') {
     const u = UNITS[args.key], count = Number(args.count);
     if (!u || !Number.isInteger(count) || count < 1 || count > 100) return fail('Выберите от 1 до 100 воинов');
-    if (s.buildings.barracks < u.req) return fail(`Нужны казармы уровня ${u.req}`);
-    if (s.queue.filter(q => q.type === 'recruit').length >= 3) return fail('Очередь найма заполнена');
+    if (buildings.barracks < u.req) return fail(`Нужны казармы уровня ${u.req}`);
+    if (localQueue.filter(q => q.type === 'recruit').length >= 3) return fail('Очередь найма заполнена');
     const cost = costAt(u.cost,0,count);
     if (!canPay(s,cost)) return fail('Недостаточно ресурсов');
-    pay(s,cost); const start = Math.max(s.time, ...s.queue.filter(q => q.type === 'recruit').map(q => q.end));
-    s.queue.push({ id:s.nextId++, type, key: args.key, count, start, end: start + Math.max(6, count * 1.2 / (1 + s.buildings.barracks * .25)) });
+    pay(s,cost); const start = Math.max(s.time, ...localQueue.filter(q => q.type === 'recruit').map(q => q.end));
+    s.queue.push({ id:s.nextId++, type, settlement:localId, key: args.key, count, start, end: start + Math.max(6, count * 1.2 / (1 + buildings.barracks * .25)) });
     return { ok: true, message: `${u.name}: ${count} в очереди найма` };
   }
   if (type === 'diplomacy') {
@@ -145,27 +151,27 @@ export function act(s, type, args = {}) {
   if (type === 'march' || type === 'reinforce') {
     const p = s.places.find(p => p.id === args.target);
     if(!p)return fail('Неизвестное поселение');
-    if(type==='reinforce'&&(p.owner!==(s.playerId||'player')||p.id===(s.home||'home')))return fail('Выберите своё владение вне столицы');
+    if(type==='reinforce'&&(p.owner!==(s.playerId||'player')||p.id===localId))return fail('Выберите своё владение вне столицы');
     if(type==='march'&&p.owner===(s.playerId||'player'))return fail('Выберите чужое поселение');
     if (s.marches.some(m => m.target === p.id && !m.returning)) return fail('Армия уже идёт к этой цели');
     if (type==='march' && s.relations[p.id] && s.relations[p.id].status !== 'war') return fail('Перед походом объявите войну в окне дипломатии');
     const fraction = Number(args.fraction ?? 1);
     if (![.25,.5,.75,1].includes(fraction)) return fail('Неверная доля войска');
-    const troops = Object.fromEntries(Object.entries(s.troops).map(([k,v]) => [k,Math.floor(v * fraction)]));
-    if (!totalTroops(troops)) return fail('В столице нет войск для похода');
+    const moving = Object.fromEntries(Object.entries(troops).map(([k,v]) => [k,Math.floor(v * fraction)]));
+    if (!totalTroops(moving)) return fail('В столице нет войск для похода');
     if (s.resources.food < 40) return fail('Для похода нужно 40 провизии');
-    pay(s,{food:40}); for (const [k,v] of Object.entries(troops)) s.troops[k] -= v;
-    const duration = Math.max(10,Math.hypot(p.x-(s.places.find(x=>x.id===(s.home||'home'))?.x??-10),p.z-(s.places.find(x=>x.id===(s.home||'home'))?.z??8)) * .65);
-    s.marches.push({id:s.nextId++,target:p.id,troops,start:s.time,end:s.time+duration,duration,returning:false});
-    log(s,`Армия (${totalTroops(troops)}) выступила: ${p.name}.`); return {ok:true,message:`Поход начался · ${Math.ceil(duration)} сек.`};
+    pay(s,{food:40}); for (const [k,v] of Object.entries(moving)) troops[k] -= v;
+    const duration = Math.max(10,Math.hypot(p.x-(s.places.find(x=>x.id===localId)?.x??-10),p.z-(s.places.find(x=>x.id===localId)?.z??8)) * .65);
+    s.marches.push({id:s.nextId++,target:p.id,troops:moving,morale:local.morale??80,start:s.time,end:s.time+duration,duration,returning:false});
+    log(s,`Армия (${totalTroops(moving)}) выступила: ${p.name}.`); return {ok:true,message:`Поход начался · ${Math.ceil(duration)} сек.`};
   }
   if (type === 'summon') {
-    if (!s.buildings.shrine) return fail('Сначала постройте древнее святилище');
+    if (!buildings.shrine) return fail('Сначала постройте древнее святилище');
     if (s.ritual || s.beast) return fail('Ритуал уже начат');
-    const target = s.places.find(p => p.kind === 'city' && p.owner !== (s.playerId || 'player') && s.relations[p.id]?.status === 'war');
+    const target = s.places.find(p => (!args.target||p.id===args.target) && p.kind === 'city' && p.owner !== (s.playerId || 'player') && s.relations[p.id]?.status === 'war');
     if (!target) return fail('Для призыва нужен вражеский город в состоянии войны');
     if (!canPay(s,{gold:2500,stone:800,food:700})) return fail('Нужно 2500 золота, 800 камня и 700 провизии');
-    pay(s,{gold:2500,stone:800,food:700}); s.ritual = {start:s.time,end:s.time+45,target:target.id};
+    pay(s,{gold:2500,stone:800,food:700}); s.ritual = {origin:localId,start:s.time,end:s.time+45,target:target.id};
     log(s,'В святилище начался ритуал пробуждения древнего зверя.','bad'); return {ok:true,message:'Ритуал начался · 45 секунд'};
   }
   return fail('Неизвестное действие');
@@ -182,9 +188,11 @@ export function tick(s, dt) {
   const elapsed = dt * s.speed; s.time += elapsed;
   const inc = income(s); for (const key of Object.keys(RESOURCES)) s.resources[key] = Math.max(0,s.resources[key] + inc[key] / 60 * elapsed);
   for (const q of s.queue.filter(q => q.end <= s.time)) {
-    if (q.type === 'build') { s.buildings[q.key]++; log(s,`${BUILDINGS[q.key].name}: уровень ${s.buildings[q.key]} готов.`, 'good'); }
+    const p=s.places.find(p=>p.id===(q.settlement||s.home||'home'));if(s.online&&p?.owner!==s.playerId)continue;
+    const b=s.online&&p.id!==s.home?p.buildings:s.buildings, t=s.online&&p.id!==s.home?(p.garrison??={}):s.troops;
+    if (q.type === 'build') { b[q.key]++; if(q.key==='walls'&&p){p.wallDamage=0;p.devastated=false;} log(s,`${p?.name||'Столица'}: ${BUILDINGS[q.key].name}, уровень ${b[q.key]} готов.`, 'good'); }
     if (q.type === 'research') { s.techs[q.key]++; if (q.key === 'diplomacy') s.reputation = Math.min(100,s.reputation+8); log(s,`${TECHS[q.key].name}: исследование завершено.`, 'good'); }
-    if (q.type === 'recruit') { s.troops[q.key] = (s.troops[q.key] || 0) + q.count; log(s,`${UNITS[q.key].name}: ${q.count} воинов прибыли в столицу.`, 'good'); }
+    if (q.type === 'recruit') { t[q.key] = (t[q.key] || 0) + q.count; log(s,`${p?.name||'Столица'}: ${UNITS[q.key].name}, ${q.count} воинов прибыли.`, 'good'); }
   }
   s.queue = s.queue.filter(q => q.end > s.time);
   const arrived = s.online ? [] : s.marches.filter(m => m.end <= s.time);
@@ -220,7 +228,7 @@ export function tick(s, dt) {
     if (enemy) { const defense = power(s.troops,s)+s.buildings.walls*100; if (defense<200) {s.resources.gold=Math.max(0,s.resources.gold-150);log(s,`${enemy.name}: вражеский отряд похитил 150 золота. Усильте гарнизон.`,'bad');} else log(s,`Гарнизон отразил вылазку войск ${enemy.name}.`,'good'); }
   }
   if (s.resources.food === 0 && s.time >= (s.flags.famineAt||0)) { s.flags.famineAt=s.time+20; for (const k of Object.keys(s.troops)) s.troops[k]=Math.max(0,s.troops[k]-Math.ceil(s.troops[k]*.1)); log(s,'Голод: часть воинов покинула гарнизон. Постройте фермы или купите еду.','bad'); }
-  if (s.ritual && s.ritual.end <= s.time) { s.beast={start:s.time,end:s.time+30,target:s.ritual.target}; s.ritual=null; log(s,'Древний зверь пробудился и идёт к вражеским стенам!','bad'); }
+  if (s.ritual && s.ritual.end <= s.time) { s.beast={origin:s.ritual.origin||s.home||'home',start:s.time,end:s.time+30,target:s.ritual.target}; s.ritual=null; log(s,'Древний зверь пробудился и идёт к вражеским стенам!','bad'); }
   if (!s.online && s.beast && s.beast.end <= s.time) { const p=s.places.find(p=>p.id===s.beast.target); if(p.owner!==(s.playerId || 'player')&&s.relations[p.id]?.status==='war'){p.defense=Math.max(20,Math.round(p.defense*.2));log(s,`Древний зверь сокрушил стены ${p.name}. Оборона снижена на 80%.`,'good');}else log(s,`Древний зверь ушёл в горы: ${p.name} больше не враг.`); s.beast=null; }
   checkVictory(s);
 }
