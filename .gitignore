@@ -1,0 +1,6 @@
+*.log
+*.pid
+serveo_known_hosts
+PUBLIC_URL.txt
+*.url
+node_modules/

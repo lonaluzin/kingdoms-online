@@ -1,0 +1,10 @@
+{
+  "scenario": "1 room / 4 humans / 2 HTTP snapshots per second per player",
+  "durationSeconds": 20,
+  "requests": 160,
+  "failures": 0,
+  "peakServerRssMB": 60,
+  "cpuPercentOfOneCore": 0.77,
+  "jsonOutboundKBPerSecond": 27.95,
+  "note": "Local single-process benchmark, not a guarantee for other hardware or hostings; excludes browser 3D and tunnel."
+}
