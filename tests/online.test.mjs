@@ -19,7 +19,8 @@ test('bilateral diplomacy and actual transferred aid',()=>{
 test('march shared between clients, capital battle, elimination and victory',()=>{
   const r=setup();r.actor('one').troops={knight:100};assert.ok(r.command('one','diplomacy',{target:'gold',action:'war'}).ok);assert.ok(r.command('one','march',{target:'gold',fraction:.75}).ok);
   assert.equal(r.snapshot('two').state.mapMarches.length,1);assert.equal(r.snapshot('two').state.mapMarches[0].origin,'home');
-  r.tick(30);assert.ok(r.actor('two').eliminated);assert.equal(r.snapshot('two').state.places.find(p=>p.id==='gold').owner,'r0');assert.equal(r.winner.id,'r0');assert.equal(r.command('two','build',{key:'farm'}).ok,false);
+  r.tick(r.actor('one').marches[0].duration+1);assert.equal(r.actor('two').eliminated,false);assert.equal(r.actor('one').marches[0].battle,true);
+  r.tick(13);assert.ok(r.actor('two').eliminated);assert.equal(r.snapshot('two').state.places.find(p=>p.id==='gold').owner,'r0');assert.equal(r.winner.id,'r0');assert.equal(r.command('two','build',{key:'farm'}).ok,false);assert.equal(r.snapshot('two').state.defeat.attacker,'Первый');
 });
 test('bots develop, recruit and march using paid commands',()=>{
   const r=new Room('one','Игрок',2);r.start('one');for(let i=0;i<180;i++)r.tick(1);
