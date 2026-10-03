@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#122721">
+  <meta name="description" content="Королевства — трёхмерная стратегия: развивайте столицу, ведите армии и меняйте судьбу соседних держав.">
+  <title>Королевства — летопись вашей державы</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23122721'/%3E%3Cpath d='M6 10l5 5 5-9 5 9 5-5-3 14H9z' fill='%23dfbd79'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./online.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+</head>
+<body>
+  <main id="game" aria-label="Карта королевств">
+    <div id="world" role="img" aria-label="Трёхмерная карта: леса, реки, города и движущиеся армии"></div>
+    <div class="vignette"></div><div id="labels"></div>
+    <header class="topbar">
+      <button class="brand" id="brand" aria-label="Вернуться к Велиграду"><span class="brand-mark" data-icon="crown"></span><span>КОРОЛЕВСТВА<small>ОДИН МИР — МНОГО ПРАВИТЕЛЕЙ</small></span></button>
+      <div id="resources" class="resources" aria-label="Ресурсы королевства"></div>
+      <div class="profile"><span class="shield-mark" data-icon="crown"></span><span>Дом Ветров<small>Правитель Велиграда</small></span></div><button id="help" class="icon-button help-button" title="Как играть" aria-label="Как играть">?</button>
+    </header>
+    <section class="world-heading"><div class="eyebrow">ЗЕМЛИ ЭЛЬДОРИИ <span>•</span> СЕТЕВАЯ ИГРА · БОТЫ</div><h1>Ваше время править</h1><p>Каждое решение становится историей.</p></section>
+    <aside class="selection panel" id="selection" aria-label="Выбранное поселение"></aside>
+    <section class="objective panel" id="objective"></section>
+    <section class="world-event" id="world-event"></section>
+    <aside class="chronicle-preview panel"><div class="panel-kicker"><span data-icon="scroll"></span> ВЕСТИ КОРОЛЕВСТВА <button id="show-log" aria-label="Открыть летопись">↗</button></div><div id="latest-log"></div></aside>
+    <div class="map-tools"><button id="reset-camera" class="icon-button" title="К столице" aria-label="К столице" data-icon="target"></button><button id="zoom-in" class="icon-button" title="Приблизить" aria-label="Приблизить">+</button><button id="zoom-out" class="icon-button" title="Отдалить" aria-label="Отдалить">−</button><button id="borders" class="icon-button active" title="Границы владений" aria-label="Показать границы" aria-pressed="true" data-icon="layers"></button></div>
+    <aside class="minimap panel"><div class="minimap-head"><span>ЭЛЬДОРИЯ</span><span>С</span></div><canvas id="minimap" width="230" height="132" aria-label="Мини-карта земель"></canvas><div class="legend"><span><i class="own"></i>Ваши земли</span><span><i class="neutral"></i>Независимые</span></div></aside>
+    <div class="map-hint"><span class="mouse-symbol"></span> Перетаскивайте карту <span>·</span> Колесо — масштаб <span>·</span> ПКМ — поворот</div>
+    <nav class="bottom-nav panel" aria-label="Управление королевством">
+      <button data-panel="build" class="nav-button"><span data-icon="castle"></span><span>Строительство</span><kbd>1</kbd></button>
+      <button data-panel="army" class="nav-button"><span data-icon="swords"></span><span>Армия</span><kbd>2</kbd></button>
+      <button data-panel="diplomacy" class="nav-button"><span data-icon="scroll"></span><span>Дипломатия</span><kbd>3</kbd></button>
+      <button data-panel="research" class="nav-button"><span data-icon="book"></span><span>Исследования</span><kbd>4</kbd></button>
+      <button data-panel="world" class="nav-button"><span data-icon="flame"></span><span>События мира</span><kbd>5</kbd></button>
+    </nav>
+    <div class="time-panel panel"><div><span class="sun" data-icon="sun"></span><span id="day">День 1</span><small>Эпоха основания</small></div><div class="time-controls"><button id="pause" aria-label="Пауза">Ⅱ</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div></div>
+    <div id="queue" class="queue"></div>
+    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+    <div id="loading"><div class="loading-crown" data-icon="crown"></div><h2>Королевства</h2><p>Разворачиваем карту Эльдории…</p></div>
+  </main>
+  <dialog id="drawer"><div class="drawer-shell"><div class="drawer-header"><div><div class="eyebrow" id="drawer-kicker">КОРОЛЕВСКИЙ СОВЕТ</div><h2 id="drawer-title"></h2></div><button id="close-drawer" class="icon-button" aria-label="Закрыть">×</button></div><div id="drawer-content"></div></div></dialog>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
