@@ -66,7 +66,7 @@ export class Room {
     }
     if(!['build','research','recruit','diplomacy','trade','march','reinforce','recall','summon','retreat'].includes(type))return fail('Неизвестное действие');
     this.refresh();
-    if(type==='retreat'){const m=s.marches.find(m=>m.id===args.id&&m.battle&&!m.returning);if(!m)return fail('Эта армия не участвует в бою');m.battle=false;m.returning=true;m.start=this.time;m.end=this.time+m.duration;m.morale=Math.max(5,(m.morale??80)-10);note(s,'Армия отступает к месту отправления.','bad');return {ok:true,message:'Приказ об отступлении принят'};}
+    if(type==='retreat'){const m=s.marches.find(m=>m.id===args.id&&m.battle&&!m.returning);if(!m)return fail('Эта армия не участвует в бою');m.casualties=m.combat.attackerStart-totalTroops(m.troops);m.outcome='retreat';m.battle=false;m.returning=true;m.start=this.time;m.end=this.time+m.duration;m.morale=Math.max(5,(m.morale??80)-10);note(s,'Армия отступает к месту отправления.','bad');return {ok:true,message:'Приказ об отступлении принят'};}
     if(type==='recall'){const p=this.places.find(p=>p.id===args.target);if(!p||p.owner!==s.playerId||p.id===s.home||!totalTroops(p.garrison||{}))return fail('В этом владении нет гарнизона');const route=findRoute(p,this.places.find(p=>p.id===s.home),this.places,this.map);if(!route)return fail('Нет безопасного пути');const duration=Math.max(30,routeLength(route)*1.4);s.marches.push({id:`${s.playerId}-${s.nextId++}`,owner:s.playerId,origin:p.id,target:s.home,kind:'recall',troops:p.garrison,route,start:this.time,end:this.time+duration,duration,returning:false});p.garrison={};this.refresh();return {ok:true,message:'Гарнизон возвращается в столицу'};}
     if(type==='diplomacy'){
       const p=this.places.find(p=>p.id===args.target), other=this.actors.find(a=>a.playerId===p?.owner);
@@ -135,7 +135,7 @@ export class Room {
           if(defender)note(defender,`Отражена атака ${this.member(s).name} у столицы.`,'good');
           note(s,`Поражение у ${p.name}. Выжившие отступают.`,'bad');
         }
-        if(totalTroops(survivors))s.marches.push({...m,battle:false,troops:survivors,returning:true,start:this.time,end:this.time+m.duration});
+        if(totalTroops(survivors))s.marches.push({...m,battle:false,outcome:win?'victory':'defeat',casualties:m.combat.attackerStart-totalTroops(m.troops),garrisonLeft:win?totalTroops(m.troops)-totalTroops(survivors):0,troops:survivors,returning:true,start:this.time,end:this.time+m.duration});
       }
       if(this.member(s).bot&&this.time>=s.botAt){s.botAt=this.time+12;this.bot(s);}
     }
