@@ -10,7 +10,7 @@ export function createServer(){
   const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
   const server=http.createServer(async(req,res)=>{try{
     const url=new URL(req.url,'http://localhost');
-    if(url.pathname==='/health'){json(res,200,{ok:true});return;}
+    if(url.pathname==='/health'){json(res,200,{ok:true,version:'0.3.0'});return;}
     if(url.pathname.startsWith('/api/')){
       let token=/kingdom_session=([a-f0-9]{48})/.exec(req.headers.cookie||'')?.[1];let session=sessions.get(token);
       if(!session){if(sessions.size>=1000){json(res,503,{ok:false,message:'Сервер заполнен'});return;}token=randomBytes(24).toString('hex');session={id:token,room:null,last:Date.now(),count:0,window:Date.now(),seen:new Map()};sessions.set(token,session);res.setHeader('Set-Cookie',`kingdom_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${req.headers['x-forwarded-proto']==='https'?'; Secure':''}`);}
@@ -27,7 +27,8 @@ export function createServer(){
         if(current){json(res,409,{ok:false,message:'Сначала покиньте текущую комнату'});return;}
         if(rooms.size>=30){json(res,503,{ok:false,message:'Все комнаты заняты'});return;}
         const bots=Number(data.bots);if(!Number.isInteger(bots)||bots<0||bots>3){json(res,400,{ok:false,message:'Выберите 0–3 бота'});return;}
-        const room=new Room(token,name,bots);while(rooms.has(room.code))room.code=randomBytes(3).toString('hex').toUpperCase();rooms.set(room.code,room);session.room=room.code;result={ok:true};
+        if(data.map!==undefined&&!['valley','forest','hills'].includes(data.map)){json(res,400,{ok:false,message:'Неизвестная карта'});return;}
+        const room=new Room(token,name,bots,data.map);while(rooms.has(room.code))room.code=randomBytes(3).toString('hex').toUpperCase();rooms.set(room.code,room);session.room=room.code;result={ok:true};
         if(data.solo)result=room.start(token);
       }else if(url.pathname==='/api/join'){
         if(current){json(res,409,{ok:false,message:'Сначала покиньте текущую комнату'});return;}
