@@ -1,10 +1,10 @@
-import {power,totalTroops,BUILDINGS} from './dist/game.js';
+import {power,counterPower,totalTroops,BUILDINGS} from './dist/game.js';
 import {findRoute,routeLength} from './dist/navigation.js';
 export const troopsAt=(room,p)=>room.actors.find(a=>a.playerId===p.owner&&a.home===p.id)?.troops||(p.garrison??={});
 export const spirit=morale=>.55+Math.max(0,Math.min(100,morale??80))*.005625;
 export function prepareBattle(room,s,m,p){
   if(!room.actors.some(a=>a.playerId===p.owner)&&!p.garrison)p.garrison={spear:Math.max(1,Math.round(p.defense/4))};
-  const defender=troopsAt(room,p),force=Math.round(power(m.troops,s,p)*spirit(m.morale)),def=p.defense,ratio=force/Math.max(1,def),win=force>=def;
+  const defender=troopsAt(room,p),force=Math.round(counterPower(m.troops,defender,s,p)*spirit(m.morale)),defenderActor=room.actors.find(a=>a.playerId===p.owner),def=Math.round((counterPower(defender,m.troops,defenderActor||s)*spirit(p.morale)+(p.buildings?.walls||0)*100)*(1-(p.wallDamage||0))),ratio=force/Math.max(1,def),win=force>=def;
   m.battle=true;m.battleAt=room.time;m.end=room.time+12;m.defenderOwner=p.owner;
   m.combat={force,defense:def,win,attackerInitial:{...m.troops},defenderInitial:{...defender},attackerStart:totalTroops(m.troops),defenderStart:totalTroops(defender),attackerMorale:m.morale??80,defenderMorale:p.morale??80,
     attackerLoss:win?Math.min(.48,.3/Math.max(.3,ratio)):Math.min(.9,.48/Math.max(.3,ratio)),defenderLoss:win?.85:Math.min(.7,force*.35/Math.max(1,def)),round:0};

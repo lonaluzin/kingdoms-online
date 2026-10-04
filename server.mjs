@@ -10,11 +10,12 @@ export function createServer(){
   const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
   const server=http.createServer(async(req,res)=>{try{
     const url=new URL(req.url,'http://localhost');
-    if(url.pathname==='/health'){json(res,200,{ok:true,version:'0.6.0'});return;}
+    if(url.pathname==='/health'){json(res,200,{ok:true,version:'0.7.0'});return;}
     if(url.pathname.startsWith('/api/')){
       let token=/kingdom_session=([a-f0-9]{48})/.exec(req.headers.cookie||'')?.[1];let session=sessions.get(token);
       if(!session){if(sessions.size>=1000){json(res,503,{ok:false,message:'Сервер заполнен'});return;}token=randomBytes(24).toString('hex');session={id:token,room:null,last:Date.now(),count:0,window:Date.now(),seen:new Map()};sessions.set(token,session);res.setHeader('Set-Cookie',`kingdom_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${req.headers['x-forwarded-proto']==='https'?'; Secure':''}`);}
       session.last=Date.now();if(session.last-session.window>1000){session.window=session.last;session.count=0;}if(++session.count>15){json(res,429,{ok:false,message:'Слишком много запросов'});return;}
+      if(session.room&&!rooms.get(session.room)?.members.some(m=>m.session===token))session.room=null;
       if(req.method==='GET'&&url.pathname==='/api/state'){json(res,200,{ok:true,room:rooms.get(session.room)?.snapshot(token)||null});return;}
       if(req.method!=='POST'||req.headers['content-type']?.split(';')[0]!=='application/json'){json(res,405,{ok:false,message:'Нужен POST JSON'});return;}
       if(req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host){json(res,403,{ok:false,message:'Чужой источник запроса'});return;}
@@ -29,13 +30,14 @@ export function createServer(){
         const bots=Number(data.bots);if(!Number.isInteger(bots)||bots<0||bots>3){json(res,400,{ok:false,message:'Выберите 0–3 бота'});return;}
         if(data.map!==undefined&&!['valley','forest','hills'].includes(data.map)){json(res,400,{ok:false,message:'Неизвестная карта'});return;}
         const room=new Room(token,name,bots,data.map,data.solo===true);while(rooms.has(room.code))room.code=randomBytes(3).toString('hex').toUpperCase();rooms.set(room.code,room);session.room=room.code;result={ok:true};
-        if(data.solo)result=room.start(token);
+        
       }else if(url.pathname==='/api/join'){
         if(current){json(res,409,{ok:false,message:'Сначала покиньте текущую комнату'});return;}
         const code=String(data.code||'').toUpperCase().trim();const room=rooms.get(code);result=room?room.join(token,name):{ok:false,message:'Комната не найдена'};if(result.ok)session.room=code;
-      }else if(url.pathname==='/api/start')result=current?.start(token)||{ok:false,message:'Комната не найдена'};
+      }else if(url.pathname==='/api/lobby')result=current?.lobby(token,data)||{ok:false,message:'Комната не найдена'};
+      else if(url.pathname==='/api/start')result=current?.start(token)||{ok:false,message:'Комната не найдена'};
       else if(url.pathname==='/api/leave'){
-        if(current?.phase==='lobby'){current.members=current.members.filter(m=>m.session!==token);if(!current.members.length)rooms.delete(current.code);else{current.host=current.members[0].session;current.members.forEach((m,i)=>{m.id=`r${i}`;m.home=['home','gold','red','silver'][i];});}}
+        if(current?.phase==='lobby'){current.members=current.members.filter(m=>m.session!==token);if(!current.members.length)rooms.delete(current.code);else{current.host=current.members[0].session;current.members.forEach(m=>m.ready=m.session===current.host);}}
         session.room=null;result={ok:true};
       }else if(url.pathname==='/api/command'){
         if(typeof data.id!=='string'||data.id.length>80){json(res,400,{ok:false,message:'Нужен идентификатор команды'});return;}
