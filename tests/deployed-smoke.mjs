@@ -25,10 +25,10 @@ try{
  const pending=await b('state');assert.ok(pending.room.offers.length);
  assert.ok((await b('command',{id:'cloud-accept',type:'accept',args:{id:pending.room.offers[0].id}})).ok);
  assert.equal((await a('command',{id:'self-war',type:'diplomacy',args:{target:homeA,action:'war'}})).ok,false);
- assert.ok((await a('command',{id:'real-war',type:'diplomacy',args:{target:'gold',action:'war'}})).ok);
- const marching=await a('command',{id:'routed-march',type:'march',args:{target:'gold',fraction:.25}});assert.ok(marching.ok);assert.ok(marching.room.state.marches[0].route.length>2);assert.equal(marching.room.state.map,'hills');
+ assert.ok((await a('command',{id:'real-war',type:'diplomacy',args:{target:homeB,action:'war'}})).ok);
+ const marching=await a('command',{id:'routed-march',type:'march',args:{target:homeB,fraction:.25}});assert.ok(marching.ok);assert.ok(marching.room.state.marches[0].route.length>2);assert.equal(marching.room.state.map,'hills');
  await a('leave',{});await b('leave',{});
- const second=await a('create',{name:'Проверка владений A',bots:0,map:'valley'});assert.ok(second.ok);assert.ok((await b('join',{name:'Проверка владений B',code:second.room.code})).ok);assert.ok((await a('start',{})).ok);
+ const second=await a('create',{name:'Проверка владений A',bots:0,map:'valley'});assert.ok(second.ok);assert.ok((await b('join',{name:'Проверка владений B',code:second.room.code})).ok);assert.ok((await b('lobby',{action:'ready'})).ok);assert.ok((await a('start',{})).ok);
  assert.ok((await a('command',{id:'camp-attack',type:'march',args:{target:'bandits',fraction:.75}})).ok);
  let battleSeen=false,battleSeenB=false,captured=false,guardBefore=0;const deadline=Date.now()+180000;
  while(Date.now()<deadline){const [x,y]=await Promise.all([a('state'),b('state')]),m=x.room.state.mapMarches.find(m=>m.target==='bandits'),other=y.room.state.mapMarches.find(m=>m.target==='bandits');battleSeenB ||=!!other?.battle;if(m?.battle){battleSeen=true;if(other?.battle)assert.equal(other.id,m.id);assert.ok(m.combat&&m.morale>=0);}if(x.room.state.places.find(p=>p.id==='bandits').owner==='player'){captured=true;guardBefore=x.room.state.settlements.bandits.composition.spear||0;break;}await new Promise(resolve=>setTimeout(resolve,500));}
@@ -40,3 +40,6 @@ try{
  await new Promise(resolve=>setTimeout(resolve,27000));const [x,y]=await Promise.all([a('state'),b('state')]);assert.equal(x.room.state.settlements.bandits.buildings.farm,1);assert.equal(y.room.state.settlements.bandits.buildings.farm,1);assert.equal(x.room.state.settlements.bandits.composition.spear,guardBefore+5);assert.equal(x.room.state.buildings.farm,2);assert.equal(y.room.state.buildings.farm,1);
  console.log(JSON.stringify({ok:true,base,twoIndependentClients:true,bots:true,privateEconomies:true,diplomacy:true,assets:true,sharedBattle:true,capture:true,localConstruction:true,localRecruitment:true,unanimousTimeVote:true}));
 }finally{await a('leave',{});await b('leave',{});}
+
+
+
