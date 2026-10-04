@@ -23,7 +23,7 @@ export function connectOnline({receive,toast}){
     if(!playing){playing=true;hideMenu();}
     receive(room.state,room);
     $('#pause').disabled=room.state.eliminated;document.querySelectorAll('[data-speed]').forEach(b=>{b.disabled=room.state.eliminated;b.title=room.solo?'Скорость вашей одиночной игры':'Согласие всех игроков; 1× можно вернуть сразу';});
-    const vote=room.timeVote;timeBox.hidden=!vote||room.state.eliminated;
+    const vote=room.timeVote;if($('#drawer').open)$('#drawer .drawer-shell').prepend(timeBox);else document.body.append(timeBox);timeBox.hidden=!vote||room.state.eliminated;
     if(vote){timeBox.innerHTML='<strong>Общее время: '+(vote.speed===0?'пауза на 60 секунд':vote.speed+'×')+'</strong><p>Нужно согласие всех. Ещё '+Math.ceil(vote.end-room.wallTime)+' сек. Предложения раз в 2 минуты. Любой игрок может вернуть 1×.</p>'+ (vote.votes[room.self]?'<p>Вы согласились · ожидаем остальных</p>':'<button class="primary" data-time-yes>Согласен</button> <button class="secondary" data-time-no>Отклонить</button>');}
     if(room.state.speed===0&&!room.solo)status.querySelector('span').textContent+=' · Пауза (не дольше минуты)';
     document.querySelector('.profile').innerHTML=`<span class="shield-mark">♛</span><span>${esc(room.players.find(p=>p.id===room.self)?.name||'Гость')}<small>${room.state.eliminated?'Наблюдатель · столица потеряна':room.state.places.find(p=>p.id===room.state.home)?.name}</small></span>`;
