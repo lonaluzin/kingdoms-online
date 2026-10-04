@@ -3,20 +3,20 @@ export const MAPS={
  forest:{name:'Лесное пограничье',seed:18451,river:2,forest:1.3},
  hills:{name:'Каменные холмы',seed:43271,river:3,forest:.65},
 };
-export const riverX=(z,map='valley')=>3+Math.sin(z*.12+(MAPS[map]?.river-1||0)*.6)*5+Math.cos(z*.2)*1.5;
-export const bridges=map=>[-10,11].map(z=>({x:riverX(z,map),z}));
+export const riverX=(z,map='valley')=>Math.sin(z*.12)*((MAPS[map]?.river||1)+2);
+export const bridges=map=>[-11,11].map(z=>({x:riverX(z,map),z}));
 export function layoutPlaces(places,map='valley'){
- const positions=map==='forest'?{home:[-20,13],gold:[25,19],red:[24,-23],willow:[-16,-4],oak:[-34,24],bandits:[-33,-13],ruins:[29,-5],silver:[-24,-25]}:map==='hills'?{home:[-23,0],gold:[24,24],red:[26,-18],willow:[-22,20],oak:[-13,-19],bandits:[-33,24],ruins:[29,3],silver:[-29,-28]}:{oak:[-22,25],red:[23,-23],ruins:[31,-7]};
+ const positions={home:[-30,26],gold:[30,26],red:[30,-26],silver:[-30,-26],willow:[-14,10],oak:[14,10],bandits:[-14,26],ruins:[30,-10]};
  return places.map(p=>({...p,...(positions[p.id]?{x:positions[p.id][0],z:positions[p.id][1]}:{})}));
 }
 export function blocked(x,z,places,map='valley'){
  if(Math.abs(x)>40||Math.abs(z)>34)return true;
- if(Math.abs(x-riverX(z,map))<3.6&&!bridges(map).some(b=>Math.abs(z-b.z)<.7&&Math.abs(x-b.x)<5))return true;
- return places.some(p=>Math.hypot(x-p.x,z-p.z)<(p.kind==='village'?5:5.8));
+ if(!places.some(p=>p.strategic&&Math.hypot(x-p.x,z-p.z)<9)&&Math.abs(x-riverX(z,map))<3.6&&!bridges(map).some(b=>Math.abs(z-b.z)<.7&&Math.abs(x-b.x)<5))return true;
+ return places.some(p=>Math.hypot(x-p.x,z-p.z)<(p.strategic?5:6.7));
 }
-const gate=p=>({x:Math.round(p.x),z:Math.round(p.z+6.5)});
+const gate=(p,other)=>p.strategic?{x:Math.sign(other.x)*5,z:Math.sign(other.z)*5}:{x:Math.round(p.x),z:Math.round(p.z+(p.z>0?-7.5:7.5))};
 export function findRoute(origin,target,places,map='valley'){
- const from=gate(origin),to=gate(target),key=p=>`${p.x},${p.z}`;
+ const from=gate(origin,target),to=gate(target,origin),key=p=>`${p.x},${p.z}`;
  const open=[{...from,g:0,f:Math.hypot(from.x-to.x,from.z-to.z)}],seen=new Map([[key(from),open[0]]]),closed=new Set();
  while(open.length){open.sort((a,b)=>a.f-b.f);const n=open.shift(),nk=key(n);if(closed.has(nk))continue;closed.add(nk);
   if(n.x===to.x&&n.z===to.z){const path=[];for(let a=n;a;a=a.parent)path.unshift({x:a.x,z:a.z});return path;}
