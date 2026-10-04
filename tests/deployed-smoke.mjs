@@ -30,13 +30,13 @@ try{
  await a('leave',{});await b('leave',{});
  const second=await a('create',{name:'Проверка владений A',bots:0,map:'valley'});assert.ok(second.ok);assert.ok((await b('join',{name:'Проверка владений B',code:second.room.code})).ok);assert.ok((await a('start',{})).ok);
  assert.ok((await a('command',{id:'camp-attack',type:'march',args:{target:'bandits',fraction:.75}})).ok);
- let battleSeen=false,captured=false,guardBefore=0;const deadline=Date.now()+150000;
- while(Date.now()<deadline){const x=await a('state'),y=await b('state'),m=x.room.state.mapMarches.find(m=>m.target==='bandits');if(m?.battle){battleSeen=true;assert.ok(y.room.state.mapMarches.some(other=>other.id===m.id&&other.battle));assert.ok(m.combat&&m.morale>=0);}if(x.room.state.places.find(p=>p.id==='bandits').owner==='player'){captured=true;guardBefore=x.room.state.settlements.bandits.composition.spear||0;break;}await new Promise(resolve=>setTimeout(resolve,500));}
- assert.ok(battleSeen,'Both clients see the battle');assert.ok(captured,'Camp captured');
+ let battleSeen=false,battleSeenB=false,captured=false,guardBefore=0;const deadline=Date.now()+150000;
+ while(Date.now()<deadline){const [x,y]=await Promise.all([a('state'),b('state')]),m=x.room.state.mapMarches.find(m=>m.target==='bandits'),other=y.room.state.mapMarches.find(m=>m.target==='bandits');battleSeenB ||=!!other?.battle;if(m?.battle){battleSeen=true;if(other?.battle)assert.equal(other.id,m.id);assert.ok(m.combat&&m.morale>=0);}if(x.room.state.places.find(p=>p.id==='bandits').owner==='player'){captured=true;guardBefore=x.room.state.settlements.bandits.composition.spear||0;break;}await new Promise(resolve=>setTimeout(resolve,500));}
+ assert.ok(battleSeen&&battleSeenB,'Both clients sample the shared battle: '+JSON.stringify({battleSeen,battleSeenB}));assert.ok(captured,'Camp captured');
  assert.ok((await a('command',{id:'camp-farm',type:'build',args:{key:'farm',settlement:'bandits'}})).ok);
  assert.ok((await a('command',{id:'capital-farm',type:'build',args:{key:'farm'}})).ok);
  assert.ok((await a('command',{id:'camp-hire',type:'recruit',args:{key:'spear',count:5,settlement:'bandits'}})).ok);
  assert.equal((await b('command',{id:'foreign-build',type:'build',args:{key:'walls',settlement:'bandits'}})).ok,false);
- await new Promise(resolve=>setTimeout(resolve,27000));const x=await a('state'),y=await b('state');assert.equal(x.room.state.settlements.bandits.buildings.farm,1);assert.equal(y.room.state.settlements.bandits.buildings.farm,1);assert.equal(x.room.state.settlements.bandits.composition.spear,guardBefore+5);assert.equal(x.room.state.buildings.farm,2);assert.equal(y.room.state.buildings.farm,1);
+ await new Promise(resolve=>setTimeout(resolve,27000));const [x,y]=await Promise.all([a('state'),b('state')]);assert.equal(x.room.state.settlements.bandits.buildings.farm,1);assert.equal(y.room.state.settlements.bandits.buildings.farm,1);assert.equal(x.room.state.settlements.bandits.composition.spear,guardBefore+5);assert.equal(x.room.state.buildings.farm,2);assert.equal(y.room.state.buildings.farm,1);
  console.log(JSON.stringify({ok:true,base,twoIndependentClients:true,bots:true,privateEconomies:true,diplomacy:true,assets:true,sharedBattle:true,capture:true,localConstruction:true,localRecruitment:true,unanimousTimeVote:true}));
 }finally{await a('leave',{});await b('leave',{});}
