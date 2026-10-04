@@ -7,10 +7,10 @@ const colors=['#70cdb6','#e5bf70','#df897a','#9caded'];
 const fail=message=>({ok:false,message});
 const note=(s,text,kind='info')=>{s.logs.unshift({time:s.time,text,kind});s.logs=s.logs.slice(0,60);};
 export class Room {
-  constructor(host,name,bots=2,map='valley'){
+  constructor(host,name,bots=2,map='valley',solo=false){
     this.map=Object.hasOwn(MAPS,map)?map:'valley';
     this.code=randomBytes(4).toString('hex').slice(0,6).toUpperCase();this.host=host;this.members=[{session:host,name,id:'r0',home:'home',bot:false}];
-    this.botCount=bots;this.phase='lobby';this.time=0;this.offers=[];this.updated=Date.now();this.actors=[];this.winner=null;this.revision=0;
+    this.solo=solo;this.speed=1;this.wallTime=0;this.vote=null;this.voteAfter=0;this.pauseUntil=null;this.botCount=bots;this.phase='lobby';this.time=0;this.offers=[];this.updated=Date.now();this.actors=[];this.winner=null;this.revision=0;
   }
   join(session,name){
     if(this.members.some(p=>p.session===session))return {ok:true};
@@ -32,7 +32,7 @@ export class Room {
       const p=this.places.find(p=>p.id===m.home);Object.assign(p,{owner:m.id,kind:'city',ruler:m.name,color:colors[i]});
       return s;
     });
-    for(const p of this.places){const a=this.actors.find(a=>a.home===p.id);p.buildings=a?a.buildings:Object.fromEntries(Object.keys(BUILDINGS).map(k=>[k,0]));p.morale=80;if(!a)p.garrison={spear:Math.max(1,Math.round(p.defense/4))};}this.phase='playing';this.refresh();return {ok:true,message:'Партия началась'};
+    for(const p of this.places){const a=this.actors.find(a=>a.home===p.id);p.buildings=a?a.buildings:Object.fromEntries(Object.keys(BUILDINGS).map(k=>[k,0]));if(!a){if(p.kind==='village')p.buildings[p.id==='oak'?'lumber':'farm']=1;if(p.kind==='city'){p.buildings.market=1;p.buildings.walls=1;}}p.morale=80;if(!a)p.garrison={spear:Math.max(1,Math.round(p.defense/4))};}this.phase='playing';this.refresh();return {ok:true,message:'Партия началась'};
   }
   actor(session){const m=this.members.find(m=>m.session===session);return this.actors.find(s=>s.playerId===m?.id);}
   refresh(){
@@ -55,16 +55,16 @@ export class Room {
   commandFor(s,type,args={}){
     if(!s||this.phase!=='playing')return fail('Начните партию');
     if(s.eliminated)return fail('Ваша столица потеряна. Выберите наблюдение или новую игру.');
-    if(this.winner)return fail('Партия завершена. Начните новую игру.');
     if(!args||typeof args!=='object'||Array.isArray(args))return fail('Неверные параметры');
     if(['build','recruit','research'].includes(type)&&!Object.hasOwn(type==='build'?BUILDINGS:type==='recruit'?UNITS:TECHS,args.key))return fail('Неизвестное улучшение или войско');
     this.updated=Date.now();
+    if(type==='speed'||type==='time-vote')return this.timeCommand(s,type,args);
     if(type==='accept'||type==='reject'){
       const o=this.offers.find(o=>o.id===args.id&&o.to===s.playerId&&o.end>this.time);if(!o)return fail('Предложение уже недоступно');
       this.offers=this.offers.filter(x=>x!==o);if(type==='reject')return {ok:true,message:'Предложение отклонено'};
       return this.treaty(this.actors.find(a=>a.playerId===o.from),s,o.action);
     }
-    if(!['build','research','recruit','diplomacy','trade','march','reinforce','recall','summon','retreat'].includes(type))return fail('Неизвестное действие');
+    if(!['build','demolish','research','recruit','diplomacy','trade','march','reinforce','recall','summon','retreat'].includes(type))return fail('Неизвестное действие');
     this.refresh();
     if(type==='retreat'){const m=s.marches.find(m=>m.id===args.id&&m.battle&&!m.returning);if(!m)return fail('Эта армия не участвует в бою');m.casualties=m.combat.attackerStart-totalTroops(m.troops);m.outcome='retreat';m.battle=false;m.returning=true;m.start=this.time;m.end=this.time+m.duration;m.morale=Math.max(5,(m.morale??80)-10);note(s,'Армия отступает к месту отправления.','bad');return {ok:true,message:'Приказ об отступлении принят'};}
     if(type==='recall'){const p=this.places.find(p=>p.id===args.target);if(!p||p.owner!==s.playerId||p.id===s.home||!totalTroops(p.garrison||{}))return fail('В этом владении нет гарнизона');const route=findRoute(p,this.places.find(p=>p.id===s.home),this.places,this.map);if(!route)return fail('Нет безопасного пути');const duration=Math.max(30,routeLength(route)*1.4);s.marches.push({id:`${s.playerId}-${s.nextId++}`,owner:s.playerId,origin:p.id,target:s.home,kind:'recall',troops:p.garrison,route,start:this.time,end:this.time+duration,duration,returning:false});p.garrison={};this.refresh();return {ok:true,message:'Гарнизон возвращается в столицу'};}
@@ -108,12 +108,30 @@ export class Room {
     a.resources.gold-=price;a.reputation=Math.min(100,a.reputation+(action==='alliance'?8:action==='trade'?3:0));
     note(a,`Договор с ${this.member(b).name}: ${action}.`,'good');note(b,`Принят договор с ${this.member(a).name}: ${action}.`,'good');return {ok:true,message:'Договор принят обеими державами'};
   }
+  timeCommand(s,type,args){
+    const voters=this.members.filter(m=>!m.bot&&!this.actors.find(a=>a.playerId===m.id)?.eliminated).map(m=>m.id);
+    if(type==='time-vote'){
+      if(!this.vote||!voters.includes(s.playerId)||!Object.hasOwn(this.vote.votes,s.playerId)||typeof args.accept!=='boolean')return fail('Нет доступного голосования');
+      if(!args.accept){this.vote=null;return {ok:true,message:'Смена времени отклонена'};}
+      this.vote.votes[s.playerId]=true;this.finishVote();return {ok:true,message:'Ваш голос принят'};
+    }
+    const speed=Number(args.speed);if(![0,1,1.5,2,4,5].includes(speed))return fail('Недопустимая скорость');
+    if(this.solo){this.speed=speed;return {ok:true,message:speed===0?'Пауза':'Скорость '+speed+'×'};}
+    if(speed===1){this.speed=1;this.pauseUntil=null;this.vote=null;return {ok:true,message:'Возвращаем обычное время'};}
+    if(this.vote||this.wallTime<this.voteAfter)return fail('Предлагать смену времени можно раз в две минуты на комнату');
+    this.voteAfter=this.wallTime+120;this.vote={speed,end:this.wallTime+30,from:s.playerId,votes:Object.fromEntries(voters.map(id=>[id,id===s.playerId]))};this.finishVote();return {ok:true,message:'Нужно согласие всех действующих игроков'};
+  }
+  finishVote(){if(this.vote&&Object.values(this.vote.votes).every(Boolean)){this.speed=this.vote.speed;this.pauseUntil=this.speed===0?this.wallTime+60:null;this.vote=null;}}
   tick(dt){
-    if(this.phase!=='playing'||this.winner)return;
+    if(this.phase!=='playing')return;
+    this.wallTime+=dt;if(this.vote&&this.vote.end<=this.wallTime)this.vote=null;
+    if(this.pauseUntil!==null&&this.wallTime>=this.pauseUntil){this.speed=1;this.pauseUntil=null;}
+    if(this.speed===0)return;
+    dt*=this.speed;
     this.time+=dt;this.refresh();
     for(const s of this.actors){if(s.eliminated)continue;tick(s,dt);s.time=this.time;
       tickBeast(this,s,dt);
-      for(const p of this.places.filter(p=>p.owner===s.playerId))if(!this.actors.some(a=>a.marches.some(m=>m.battle&&m.target===p.id))&&!this.actors.some(a=>a.beast?.battle&&a.beast.target===p.id))p.morale=Math.max(5,Math.min(100,(p.morale??80)+(s.resources.food>0?.15:-.5)*dt));
+      for(const p of this.places.filter(p=>p.owner===s.playerId))if(!this.actors.some(a=>a.marches.some(m=>m.battle&&m.target===p.id))&&!this.actors.some(a=>a.beast?.battle&&a.beast.target===p.id))p.morale=Math.max(5,Math.min(100,(p.morale??80)+(s.resources.food>0?.15:-.5)*dt*(p.buildings?.runeforge?3:1)));
       for(const m of s.marches)if(m.battle)advanceBattle(this,s,m,this.places.find(p=>p.id===m.target));
     }
     this.refresh();
@@ -123,14 +141,14 @@ export class Room {
         if(m.returning||m.kind==='recall'){const destination=this.places.find(p=>p.id===(m.kind==='recall'?m.target:m.origin));const target=destination?.owner===s.playerId?destination:this.places.find(p=>p.id===s.home);const troops=troopsAt(this,target);for(const [k,n]of Object.entries(m.troops))troops[k]=(troops[k]||0)+n;note(s,`${totalTroops(m.troops)} воинов вернулись: ${target.name}.`);continue;}
         const p=this.places.find(p=>p.id===m.target);
         if(m.kind==='reinforce'&&p.owner===s.playerId){const guard=troopsAt(this,p);for(const [k,n]of Object.entries(m.troops))guard[k]=(guard[k]||0)+n;note(s,`${p.name}: прибыли ${totalTroops(m.troops)} защитников.`,'good');continue;}
-        if(p.owner===s.playerId||(s.relations[p.id]&&s.relations[p.id].status!=='war')){s.marches.push({...m,returning:true,start:this.time,end:this.time+m.duration});continue;}
+        if((m.battle&&p.owner!==m.defenderOwner)||p.owner===s.playerId||(s.relations[p.id]&&s.relations[p.id].status!=='war')){s.marches.push({...m,battle:false,returning:true,start:this.time,end:this.time+m.duration});continue;}
         if(!m.battle){prepareBattle(this,s,m,p);s.marches.push(m);note(s,`Сражение за ${p.name} началось. Исход через 12 секунд.`,'bad');continue;}
         this.refresh();const force=m.combat.force,def=m.combat.defense,win=m.combat.win&&!m.routed&&totalTroops(m.troops)>0;
         const survivors={...m.troops};
         const defender=this.actors.find(a=>a.playerId===p.owner&&a.home===p.id);
         if(win){
-          if(defender){defender.eliminated=true;defender.troops={};defender.marches=[];defender.queue=[];defender.ritual=null;defender.beast=null;defender.defeat={attacker:this.member(s).name,force,defense:def,place:p.name,time:this.time};note(defender,`${this.member(s).name} захватил вашу столицу: атака ${force}, ваша оборона ${def}. Правление завершено.`,'bad');for(const land of this.places)if(land.owner===defender.playerId)land.owner=s.playerId;}
-          p.owner=s.playerId;p.morale=55;p.garrison={};{for(const [k,n]of Object.entries(survivors)){const guard=Math.floor(n*.35);p.garrison[k]=guard;survivors[k]-=guard;}}p.defense=power(p.garrison,s);s.resources.gold+=p.kind==='city'?700:p.kind==='camp'?380:200;s.resources.wood+=90;s.reputation=Math.max(0,s.reputation+(p.kind==='village'?-15:p.kind==='camp'?8:-5));note(s,`Победа! ${p.name} присоединён к вашей державе.`,'good');
+          if(defender){if(this.solo){this.speed=1;this.pauseUntil=null;}defender.eliminated=true;defender.troops={};defender.marches=[];defender.queue=[];defender.ritual=null;defender.beast=null;defender.defeat={attacker:this.member(s).name,force,defense:def,place:p.name,time:this.time};note(defender,`${this.member(s).name} захватил вашу столицу: атака ${force}, ваша оборона ${def}. Правление завершено.`,'bad');for(const land of this.places)if(land.owner===defender.playerId&&land!==p){land.owner='independent-'+land.id;land.ruler='Свободные жители · '+land.name;land.color='#b7b49b';}}
+          p.owner=s.playerId;p.occupationUntil=this.time+60;p.morale=55;p.garrison={};{for(const [k,n]of Object.entries(survivors)){const guard=Math.floor(n*.35);p.garrison[k]=guard;survivors[k]-=guard;}}p.defense=power(p.garrison,s);s.resources.gold+=p.kind==='city'?700:p.kind==='camp'?380:200;s.resources.wood+=90;s.reputation=Math.max(0,s.reputation+(p.kind==='village'?-15:p.kind==='camp'?8:-5));note(s,`Победа! ${p.name} присоединён к вашей державе.`,'good');
         }else{
           if(defender)note(defender,`Отражена атака ${this.member(s).name} у столицы.`,'good');
           note(s,`Поражение у ${p.name}. Выжившие отступают.`,'bad');
@@ -144,7 +162,7 @@ export class Room {
     const economic=living.find(s=>s.resources.gold>=6000&&[...new Set(Object.values(s.relations))].filter(r=>r.trade).length>=3);
     const political=living.find(s=>s.reputation>=80&&[...new Set(Object.values(s.relations))].filter(r=>r.status==='alliance').length>=4);
     const winner=living.length===1?living[0]:economic||political;
-    if(winner){this.winner={id:winner.playerId,name:this.member(winner).name,type:living.length===1?'Военная победа':economic?'Экономическая победа':'Политическая победа'};for(const s of this.actors)note(s,`${this.winner.type}: ${this.winner.name}`,'good');}
+    if(winner&&!this.winner){this.winner={id:winner.playerId,name:this.member(winner).name,type:living.length===1?'Военная победа':economic?'Экономическая победа':'Политическая победа'};for(const s of this.actors)note(s,`${this.winner.type}: ${this.winner.name}`,'good');}
     this.revision++;
   }
   bot(s){
@@ -163,13 +181,13 @@ export class Room {
   }
   snapshot(session){
     const member=this.members.find(m=>m.session===session);if(!member)return null;
-    const meta={code:this.code,phase:this.phase,host:this.host===session,botCount:this.botCount,map:this.map,players:this.members.map(m=>({id:m.id,name:m.name,home:m.home,bot:m.bot,eliminated:this.actors.find(a=>a.playerId===m.id)?.eliminated||false})),winner:this.winner,revision:this.revision};
+    const meta={code:this.code,phase:this.phase,host:this.host===session,botCount:this.botCount,map:this.map,players:this.members.map(m=>({id:m.id,name:m.name,home:m.home,bot:m.bot,eliminated:this.actors.find(a=>a.playerId===m.id)?.eliminated||false})),winner:this.winner,revision:this.revision,solo:this.solo,speed:this.speed,wallTime:this.wallTime,timeVote:this.vote};
     if(this.phase==='lobby')return meta;
-    const s=this.actor(session),state=structuredClone(s);state.time=this.time;
+    const s=this.actor(session),state=structuredClone(s);state.time=this.time;state.speed=this.speed;state.solo=this.solo;
     state.realmId=s.playerId;state.realmNames=Object.fromEntries(this.members.map(m=>[m.id,m.name]));
     state.places=state.places.map(p=>({...p,owner:p.owner===s.playerId?'player':p.owner}));
     state.mapMarches=this.actors.flatMap(a=>a.marches.map(m=>({...m,owner:a.playerId})));state.playerId='player';
-    state.settlements=Object.fromEntries(this.places.map(p=>[p.id,{owner:p.owner===s.playerId?'player':p.owner,buildings:{...p.buildings},troops:totalTroops(troopsAt(this,p)),composition:{...troopsAt(this,p)},morale:p.morale??80,queue:p.owner===s.playerId?s.queue.filter(q=>(q.settlement||s.home)===p.id):[]} ]));
+    state.settlements=Object.fromEntries(this.places.map(p=>[p.id,{owner:p.owner===s.playerId?'player':p.owner,buildings:{...p.buildings},troops:totalTroops(troopsAt(this,p)),composition:{...troopsAt(this,p)},morale:p.morale??80,occupationUntil:p.occupationUntil||0,queue:p.owner===s.playerId?s.queue.filter(q=>(q.settlement||s.home)===p.id):[]} ]));
     state.mapBeasts=this.actors.filter(a=>a.beast?.id).map(a=>({...a.beast}));
     state.receivedAt=0;state.matchWinner=this.winner;state.realmColors=Object.fromEntries(this.members.map((m,i)=>[m.id,colors[i]]));
     meta.state=state;meta.self=member.id;meta.offers=this.offers.filter(o=>o.to===member.id).map(o=>({...o,name:this.members.find(m=>m.id===o.from)?.name}));return meta;

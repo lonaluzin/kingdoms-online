@@ -10,7 +10,7 @@ export function createServer(){
   const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
   const server=http.createServer(async(req,res)=>{try{
     const url=new URL(req.url,'http://localhost');
-    if(url.pathname==='/health'){json(res,200,{ok:true,version:'0.4.0'});return;}
+    if(url.pathname==='/health'){json(res,200,{ok:true,version:'0.5.0'});return;}
     if(url.pathname.startsWith('/api/')){
       let token=/kingdom_session=([a-f0-9]{48})/.exec(req.headers.cookie||'')?.[1];let session=sessions.get(token);
       if(!session){if(sessions.size>=1000){json(res,503,{ok:false,message:'Сервер заполнен'});return;}token=randomBytes(24).toString('hex');session={id:token,room:null,last:Date.now(),count:0,window:Date.now(),seen:new Map()};sessions.set(token,session);res.setHeader('Set-Cookie',`kingdom_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${req.headers['x-forwarded-proto']==='https'?'; Secure':''}`);}
@@ -28,7 +28,7 @@ export function createServer(){
         if(rooms.size>=30){json(res,503,{ok:false,message:'Все комнаты заняты'});return;}
         const bots=Number(data.bots);if(!Number.isInteger(bots)||bots<0||bots>3){json(res,400,{ok:false,message:'Выберите 0–3 бота'});return;}
         if(data.map!==undefined&&!['valley','forest','hills'].includes(data.map)){json(res,400,{ok:false,message:'Неизвестная карта'});return;}
-        const room=new Room(token,name,bots,data.map);while(rooms.has(room.code))room.code=randomBytes(3).toString('hex').toUpperCase();rooms.set(room.code,room);session.room=room.code;result={ok:true};
+        const room=new Room(token,name,bots,data.map,data.solo===true);while(rooms.has(room.code))room.code=randomBytes(3).toString('hex').toUpperCase();rooms.set(room.code,room);session.room=room.code;result={ok:true};
         if(data.solo)result=room.start(token);
       }else if(url.pathname==='/api/join'){
         if(current){json(res,409,{ok:false,message:'Сначала покиньте текущую комнату'});return;}
@@ -53,7 +53,7 @@ export function createServer(){
     res.writeHead(200,{'Content-Type':mime,'X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Cache-Control':target.includes('vendor')?'public, max-age=86400':'no-cache'});res.end(req.method==='HEAD'?undefined:await readFile(target));
   }catch(error){if(!res.headersSent)json(res,404,{ok:false,message:'Ресурс не найден'});else res.end();}});
   let last=performance.now();const timer=setInterval(()=>{const now=performance.now(),dt=Math.min(1,(now-last)/1000);last=now;for(const room of rooms.values())room.tick(dt);},100);
-  const cleanup=setInterval(()=>{const now=Date.now();for(const [token,s]of sessions)if(now-s.last>86400000)sessions.delete(token);for(const [code,room]of rooms){const present=[...sessions.values()].some(s=>s.room===code&&now-s.last<3600000);if(!present)rooms.delete(code);}},60000);
+  const cleanup=setInterval(()=>{const now=Date.now();for(const [token,s]of sessions)if(now-s.last>86400000)sessions.delete(token);for(const [code,room]of rooms){const present=[...sessions.values()].some(s=>s.room===code&&now-s.last<86400000);if(!present)rooms.delete(code);}},60000);
   server.on('close',()=>{clearInterval(timer);clearInterval(cleanup);});return {server,rooms};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){const {server}=createServer();server.listen(Number(process.env.PORT)||4174,process.env.HOST||'0.0.0.0',()=>console.log(`Kingdoms online ready on port ${server.address().port}`));}
