@@ -36,7 +36,7 @@ const sound=createAudio();
 const storageKey='kingdoms-save-v1';let saved=null;
 
 let transferSource=null,chosenUnits=null,stance='defensive';let demolitionKey=null;let settlementContext='home',marchSource='home',inspectedArmy=null,beastTarget=null;
-let state=saved||freshGame(),selected='home',currentPanel=null,selectedFaction=null,recruitCount=5,unitTier=0,unitFilter='Все',fraction=.75,world=null,previousFingerprint='',lastLog=state.logs[0]?.text;
+let state=saved||freshGame(),selected='home',currentPanel=null,selectedFaction=null,recruitCount=5,unitTier=1,unitFilter='Все',fraction=.75,world=null,previousFingerprint='',lastLog=state.logs[0]?.text;
 const drawer=$('#drawer'),content=$('#drawer-content');
 const titles={demolish:'Разборка здания',build:'Строительство',army:'Королевское войско',diplomacy:'Совет правителей',research:'Знания — сила державы',world:'События мира',log:'Летопись державы',help:'Первый день правления',goals:'Ваш путь к величию',march:'Военный поход',battle:'Состояние армии и сражения',transfer:'Перебросить войска',holdings:'Ваши владения',new:'Новая летопись',victory:'Королевство вошло в историю'};
 function hydrateIcons(root=document){root.querySelectorAll('[data-icon]').forEach(el=>{el.innerHTML=icon(el.dataset.icon);});}
@@ -100,7 +100,7 @@ function updateUI(force=false){const inc=state.eliminated?Object.fromEntries(Obj
 }
 document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b||b.disabled)return;
   if(b.dataset.transfer){transferSource=b.dataset.transfer;openPanel('transfer');}
-  else if(b.dataset.transferTarget){selected=b.dataset.transferTarget;marchSource=transferSource;openPanel('march');}
+  else if(b.dataset.transferTarget){selected=b.dataset.transferTarget;world?.select(selected);updateSelection();marchSource=transferSource;openPanel('march');}
   else if(b.dataset.localBuild){selectPlace(b.dataset.localBuild);openPanel('build');}
   else if(b.dataset.localArmy){selectPlace(b.dataset.localArmy);openPanel('army');}
   else if(b.dataset.army)inspectArmy(b.dataset.army);
@@ -131,7 +131,7 @@ document.addEventListener('change',e=>{if(e.target.dataset.armyStance)perform('s
 $('#close-drawer').onclick=closePanel;drawer.addEventListener('cancel',e=>{e.preventDefault();closePanel();});drawer.addEventListener('click',e=>{if(e.target===drawer){const r=drawer.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closePanel();}});
 $('#help').onclick=()=>openPanel('help');$('#show-log').onclick=()=>openPanel('log');$('#brand').onclick=()=>{selectPlace(state.home||'home');world?.focus(state.home||'home');};$('#reset-camera').onclick=()=>{selectPlace(state.home||'home');world?.focus(state.home||'home');};$('#zoom-in').onclick=()=>world?.zoom(.84);$('#zoom-out').onclick=()=>world?.zoom(1.18);$('#borders').onclick=()=>{const show=$('#borders').getAttribute('aria-pressed')!=='true';$('#borders').setAttribute('aria-pressed',String(show));$('#borders').classList.toggle('active',show);world?.borders(show);};
 function togglePause(){perform('speed',{speed:state.speed===0?1:0});}$('#pause').onclick=togglePause;
-document.addEventListener('keydown',e=>{if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(e.code==='Space'&&e.target.closest('button'))return;if(e.code==='Space'){e.preventDefault();togglePause();}if(['1','2','3','4','5'].includes(e.key))openPanel(['holdings','army','diplomacy','research','world'][Number(e.key)-1]);});
+document.addEventListener('keydown',e=>{if(document.body.classList.contains('in-menu'))return;if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(e.code==='Space'&&e.target.closest('button'))return;if(e.code==='Space'){e.preventDefault();togglePause();}if(['1','2','3','4','5'].includes(e.key))openPanel(['holdings','army','diplomacy','research','world'][Number(e.key)-1]);});
 window.addEventListener('pagehide',save);
 let online;online=connectOnline({receive(snapshot,meta){const start=!state.online,previousHome=state.home;const unchanged=state.online&&state.time===snapshot.time,receivedAt=state.receivedAt;state=snapshot;state.receivedAt=unchanged?receivedAt:performance.now();state.online=true;if(!start&&previousHome!==state.home){selected=state.home;settlementContext=state.home;marchSource=state.home;world?.select(selected);world?.focus(selected);}if(start){selected=state.home;world?.dispose();$('#world').replaceChildren();$('#labels').replaceChildren();world=createWorld($('#world'),$('#labels'),()=>state,selectPlace,inspectArmy);world.select(selected);world.focus(selected);}updateUI(start);if(start&&!state.eliminated&&!state.matchWinner)openPanel('help');},toast});
 updateUI(true);
