@@ -1,12 +1,12 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {Room} from '../rooms.mjs';import {income,BUILDINGS,buildingSlots,militaryLevel,UNITS,totalTroops} from '../dist/game.js';import {visualTime} from '../dist/navigation.js';
-const setup=()=>{const r=new Room('a','Первый',0);r.join('b','Второй');r.start('a');return r;};
+const setup=()=>{const r=new Room('a','Первый',0);r.join('b','Второй');r.seed=1329;r.members.forEach(m=>m.ready=true);r.start('a');return r;};
 const advance=(r,n)=>{for(let i=0;i<n*10;i++)r.tick(.1);};
-test('defeated spectator sees a living world and accurate independent ownership; winner can keep playing',()=>{
- const r=setup(),a=r.actor('a'),b=r.actor('b'),outpost=r.places.find(p=>p.id==='willow');outpost.owner=b.playerId;outpost.buildings.farm=2;outpost.garrison={spear:10};a.troops={knight:100};
- r.command('a','diplomacy',{target:'gold',action:'war'});r.command('a','march',{target:'gold',fraction:.75});advance(r,a.marches[0].duration+13);
- assert.ok(b.eliminated);assert.equal(r.winner.id,a.playerId);assert.equal(outpost.owner,'independent-willow');assert.equal(outpost.buildings.farm,2);assert.equal(outpost.garrison.spear,10);
- assert.equal(r.snapshot('b').state.places.filter(p=>p.owner==='player').length,0);const time=r.time,gold=a.resources.gold;advance(r,10);assert.ok(r.time>time+9);assert.ok(a.resources.gold>gold);assert.ok(r.command('a','build',{key:'farm'}).ok);assert.equal(r.command('b','speed',{speed:5}).ok,false);
+test('capital moves to surviving settlement; only the final loss defeats, world and winner continue',()=>{
+ const r=setup(),a=r.actor('a'),b=r.actor('b'),outpost=r.places.find(p=>p.id==='willow');outpost.owner=b.playerId;outpost.buildings.farm=2;outpost.garrison={spear:10};a.troops={knight:500};
+ r.command('a','diplomacy',{target:b.home,action:'war'});r.command('a','march',{target:b.home,fraction:.75});advance(r,a.marches[0].duration+13);
+ assert.equal(b.eliminated,false);assert.equal(b.home,outpost.id);assert.equal(outpost.owner,b.playerId);assert.equal(b.buildings.farm,2);assert.equal(b.troops.spear,10);assert.equal(a.relations[b.home].status,'war');assert.equal(r.winner,null);assert.ok(b.capitalMoved);
+ assert.ok(r.command('a','march',{target:b.home,fraction:1}).ok);const final=a.marches.find(m=>!m.returning);advance(r,final.duration+13);assert.ok(b.eliminated);assert.equal(r.winner.id,a.playerId);assert.equal(r.snapshot('b').state.places.filter(p=>p.owner==='player').length,0);const time=r.time;advance(r,10);assert.ok(r.time>time+9);assert.ok(r.command('a','build',{key:'farm'}).ok);assert.equal(r.command('b','speed',{speed:5}).ok,false);
 });
 test('five slots count types and queued buildings, preserve upgrades, and free through deliberate demolition',()=>{
  const r=setup(),s=r.actor('a');assert.equal(buildingSlots(s.buildings),4);assert.ok(r.command('a','build',{key:'barracks'}).ok);assert.equal(buildingSlots(s.buildings,s.queue),5);advance(r,17);
@@ -15,7 +15,7 @@ test('five slots count types and queued buildings, preserve upgrades, and free t
 });
 test('capture keeps existing buildings and halves local production for 60 game seconds',()=>{
  const r=setup(),s=r.actor('a'),p=r.places.find(p=>p.id==='willow');s.troops={knight:100};assert.equal(p.buildings.farm,1);r.command('a','diplomacy',{target:p.id,action:'war'});r.command('a','march',{target:p.id,fraction:.75});advance(r,s.marches[0].duration+13);assert.equal(p.owner,s.playerId);assert.equal(p.buildings.farm,1);assert.ok(p.occupationUntil>r.time);
- const half=income(s);p.occupationUntil=0;const full=income(s);assert.equal(full.food-half.food,67.5);assert.equal(full.gold-half.gold,15);p.occupationUntil=r.time+60;advance(r,61);assert.ok(p.occupationUntil<r.time);
+ const half=income(s);p.occupationUntil=0;const full=income(s);assert.ok(Math.abs(full.food-half.food-67.5)<1e-8);assert.equal(full.gold-half.gold,15);p.occupationUntil=r.time+60;advance(r,61);assert.ok(p.occupationUntil<r.time);
 });
 test('multiple armies to same target never attack their own newly captured city or duplicate its reward',()=>{
  const r=setup(),s=r.actor('a');s.troops={knight:100};assert.ok(r.command('a','march',{target:'bandits',fraction:.5}).ok);assert.ok(r.command('a','march',{target:'bandits',fraction:1}).ok);assert.equal(s.marches.length,2);const start=totalTroops(s.marches[0].troops)+totalTroops(s.marches[1].troops);advance(r,s.marches[0].duration+13);

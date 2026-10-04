@@ -1,12 +1,12 @@
 import {createArmyModel,animateArmy,batchStaticParts} from './models.js';
 import * as THREE from 'three';
-import {MAPS,riverX as mapRiver,findRoute,routePoint,visualTime} from './navigation.js';
+import {MAPS,riverX as mapRiver,findRoute,routePoint,routeLength,blocked,visualTime} from './navigation.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 
 export function labelTransform(projected,width,height,minY=0){return `translate(-50%,-100%) translate(${(projected.x+1)*width/2}px,${Math.max(minY,(-projected.y+1)*height/2)}px)`;}
 
 export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{}) {
-  const map=getState().map||'valley'; let seed = MAPS[map].seed;
+  const map=getState().map||'valley'; let seed = getState().seed||MAPS[map].seed;
   const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#b0c6bf');
@@ -19,7 +19,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const camera = new THREE.PerspectiveCamera(39,host.clientWidth/host.clientHeight,.1,300);
   camera.position.set(45,63,72);
   const controls = new OrbitControls(camera,renderer.domElement);
-  controls.target.set(0,0,1); controls.enableDamping=true; controls.dampingFactor=.08; controls.minDistance=28; controls.maxDistance=123; controls.maxPolarAngle=Math.PI*.43; controls.minPolarAngle=.3;
+  controls.target.set(0,0,1); controls.enableDamping=true; controls.dampingFactor=.08; controls.minDistance=28; controls.maxDistance=123; controls.maxPolarAngle=Math.PI*.35; controls.minPolarAngle=.3;
   controls.mouseButtons={LEFT:THREE.MOUSE.PAN,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.ROTATE};
   controls.touches={ONE:THREE.TOUCH.PAN,TWO:THREE.TOUCH.DOLLY_ROTATE}; controls.screenSpacePanning=false;
   const hemi = new THREE.HemisphereLight('#d6e8f0','#4c6141',1.8); scene.add(hemi);
@@ -35,12 +35,12 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     let h = .75+Math.sin(x*.32)*Math.cos(z*.22)*.45+Math.sin(x*.8+z*.4)*.13;
     if(river<2.9) h=-.8+Math.pow(river/2.9,4)*1.6;
     const edge=Math.max(Math.abs(x)/42,Math.abs(z)/36);
-    if(edge>.8) h+=(edge-.8)*9;
-    for(const p of getState().places){const d=Math.hypot(x-p.x,z-p.z);if(d<5.5)h=THREE.MathUtils.lerp(.83,h,THREE.MathUtils.smoothstep(d,3.6,5.5));}
+    if(edge>.8) h+=Math.min(2,(edge-.8)*4);
+    for(const p of getState().places){const d=Math.hypot(x-p.x,z-p.z);if(d<9)h=THREE.MathUtils.lerp(.83,h,THREE.MathUtils.smoothstep(d,7,9));}
     return h;
   }
-  mesh(scene,'box','#263f35',0,-2.5,0,85,4,73);
-  const terrain=new THREE.PlaneGeometry(84,72,105,90);terrain.rotateX(-Math.PI/2);
+  mesh(scene,'box','#5d754b',0,-5,0,600,8,600);
+  const terrain=new THREE.PlaneGeometry(240,240,240,240);terrain.rotateX(-Math.PI/2);
   const pos=terrain.attributes.position;
   for(let i=0;i<pos.count;i++)pos.setY(i,height(pos.getX(i),pos.getZ(i)));
   const flat=terrain.toNonIndexed(); const colors=[]; const colorset=['#688252','#718d56','#748d59','#6c8652','#7c925a','#82965f'];
@@ -49,8 +49,10 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const land=new THREE.Mesh(flat,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true}));land.receiveShadow=true;scene.add(land);
   const waterUniform={value:0};
   const waterMaterial=new THREE.MeshStandardMaterial({color:'#429397',roughness:.2,metalness:.35,transparent:true,opacity:.91});
-  waterMaterial.onBeforeCompile=shader=>{shader.uniforms.waveTime=waterUniform;shader.vertexShader='uniform float waveTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nobjectNormal.x += cos(position.x*2.2+waveTime)*.12; objectNormal.y += sin(position.y*2.6+waveTime*1.3)*.12;').replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.z += sin(position.x*1.8+waveTime)*.022 + cos(position.y*2.4+waveTime*1.2)*.018;');};
-  const water=new THREE.Mesh(new THREE.PlaneGeometry(83.9,71.9,110,95),waterMaterial);water.rotation.x=-Math.PI/2;water.position.y=.02;scene.add(water);
+  waterMaterial.onBeforeCompile=shader=>{shader.uniforms.waveTime=waterUniform;shader.vertexShader='uniform float waveTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nobjectNormal.x += cos(position.x*2.2+waveTime)*.12; objectNormal.z += sin(position.z*2.6+waveTime*1.3)*.12;').replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.y += sin(position.x*1.8+waveTime)*.022 + cos(position.z*2.4+waveTime*1.2)*.018;');};
+  const waterGeometry=new THREE.BufferGeometry(),waterVertices=[],waterIndices=[];
+  for(let i=0;i<=240;i++){const z=i-120;for(const side of [-1,1])waterVertices.push(riverX(z)+side*2.95,.02,z);if(i<240){const n=i*2;waterIndices.push(n,n+2,n+1,n+1,n+2,n+3);}}
+  waterGeometry.setAttribute('position',new THREE.Float32BufferAttribute(waterVertices,3));waterGeometry.setIndex(waterIndices);waterGeometry.computeVertexNormals();waterMaterial.side=THREE.DoubleSide;const water=new THREE.Mesh(waterGeometry,waterMaterial);scene.add(water);
   const waterLines=[];
   for(let i=0;i<95;i++){const z=random()*69-34.5,x=riverX(z)+(random()-.5)*3; const l=mesh(scene,'box','#8ec4bf',x,.045,z,.15+random()*.6,.009,.025);l.castShadow=false;waterLines.push(l);}
   function road(a,b,color='#b6a078',width=.25) {
@@ -60,14 +62,14 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const places=getState().places;
   // Clear walking corridors through woods, without laying paths through the river.
   const roads=[];for(let i=0;i<places.length;i++)for(let j=i+1;j<places.length;j++){const path=findRoute(places[i],places[j],places,map);if(path)roads.push(path);}
-  for(const z of [11,-10]){const x=riverX(z);mesh(scene,'box','#998564',x,.67,z,10,.4,1.6);for(const side of [-1,1]){mesh(scene,'box','#6c654e',x,1.23,z+side*.77,10,.25,.14);for(let j=-4.5;j<=4.5;j+=1.5)mesh(scene,'box','#6c654e',x+j,.78,z+side*.77,.15,1.2,.15);}for(let j=-4.5;j<4.8;j+=.35)mesh(scene,'box','#b1a383',x+j,.9,z,.055,.055,1.5);}
+  for(const z of [11,-11]){const x=riverX(z);mesh(scene,'box','#998564',x,.67,z,10,.4,1.6);for(const side of [-1,1]){mesh(scene,'box','#6c654e',x,1.23,z+side*.77,10,.25,.14);for(let j=-4.5;j<=4.5;j+=1.5)mesh(scene,'box','#6c654e',x+j,.78,z+side*.77,.15,1.2,.15);}for(let j=-4.5;j<4.8;j+=.35)mesh(scene,'box','#b1a383',x+j,.9,z,.055,.055,1.5);}
   const trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.11,.18,1.6,5),mat('#63583b'),850);
   const crowns=new THREE.InstancedMesh(new THREE.ConeGeometry(1,2.7,7),mat('#35604a'),850);
   const tips=new THREE.InstancedMesh(new THREE.ConeGeometry(.7,2.1,7),mat('#567b50'),850);
   const canopy=new THREE.InstancedMesh(geometries.sphere,mat('#63824b'),850),upperCanopy=new THREE.InstancedMesh(geometries.sphere,mat('#789352'),850);
   const dummy=new THREE.Object3D();let trees=0;
   for(let i=0;i<2000&&trees<850;i++){
-    const x=random()*81-40.5,z=random()*69-34.5;
+    const x=random()*81-40.5,z=random()*57-28.5;
     if(Math.abs(x-riverX(z))<4.3||places.some(p=>Math.hypot(x-p.x,z-p.z)<6)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<.9)))continue;
     const n=Math.sin(x*.13+1)*Math.cos(z*.15);if(random()>(n+.9)*.58*MAPS[map].forest)continue;
     const h=height(x,z),scale=.5+random()*.7;
@@ -79,7 +81,8 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     dummy.position.set(x+.3*scale,h+2.45*scale,z-.2*scale);dummy.scale.multiplyScalar(.75);dummy.updateMatrix();upperCanopy.setMatrixAt(trees,dummy.matrix);trees++;
   }
   for(const t of [trunk,crowns,tips,canopy,upperCanopy]){t.count=trees;t.castShadow=true;t.receiveShadow=true;scene.add(t);}
-  for(let i=0;i<45;i++){const x=-39+random()*78,z=-31+random()*8;if(Math.abs(x-riverX(z))<5||places.some(p=>Math.hypot(x-p.x,z-p.z)<7))continue;const scale=2+random()*(map==='hills'?7:5);const m=mesh(scene,new THREE.ConeGeometry(1,1,5),'#879189',x,height(x,z)+scale*.42,z,scale*.9,scale*1.5,scale*.75);m.rotation.y=random()*6;if(scale>4)mesh(scene,new THREE.ConeGeometry(1,1,5),'#d4d9c8',x,height(x,z)+scale*1.12,z,scale*.26,scale*.46,scale*.22);}
+  for(const side of [-1,1])for(let i=0;i<16;i++){const x=-42+i*5.6+(random()-.5)*2,z=side*(35+random()*5);if(Math.abs(x-riverX(z))<6||places.some(p=>Math.hypot(x-p.x,z-p.z)<10))continue;const scale=2.7+random()*(map==='hills'?6:3.5),base=height(x,z),rotation=random()*6;const m=mesh(scene,new THREE.ConeGeometry(1,1,6),'#879189',x,base+scale*.75,z,scale*.9,scale*1.5,scale*.75);m.rotation.y=rotation;if(scale>4){const cap=mesh(scene,new THREE.ConeGeometry(1,1,6),'#d4d9c8',x,base+scale*1.27,z,scale*.276,scale*.46,scale*.23);cap.rotation.y=rotation;}}
+
   for(let i=0;i<60;i++){const x=random()*80-40,z=random()*68-34;if(places.some(p=>Math.hypot(x-p.x,z-p.z)<5)||Math.abs(x-riverX(z))<3.4)continue;const sc=.3+random()*.6;mesh(scene,'sphere','#9a9c85',x,height(x,z)+sc*.3,z,sc,sc*.8,sc);}
   // Vegetation shares geometry and uses two draw calls, rather than hundreds of small objects.
   const shrubs=new THREE.InstancedMesh(geometries.sphere,mat('#69834f'),240),grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.12,.55,3),mat('#87975b'),600);let bushes=0,tufts=0;
@@ -113,15 +116,15 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     house(group,-1.6,-.1,.7,roof);
     for(const x of [-.45,0,.45])mesh(group,'box','#5f6c63',x,2.55,.375,.18,.55,.035);
     for(const x of [-.65,.65]){mesh(group,'box','#a89164',x,1.5,2.75,.09,1.5,.08);mesh(group,'box','#b49c6e',x,2.25,2.75,.22,.15,.16);}
-    for(const [x,z,s] of [[-4.6,1,.8],[-3.8,4.1,.9],[-1.2,4.6,.8],[2.1,4.6,.85],[4.4,1.8,.85],[4.6,-1.1,.65]])house(group,x,z,s);return banner;
+    return banner;
   }
   function farm(parent,x,z){const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(.65);parent.add(g);mesh(g,'box','#6b4c2d',0,.05,0,3.7,.09,2.5);for(let i=-1.5;i<=1.5;i+=.45)for(let j=-1;j<=1;j+=.45){mesh(g,'cylinder','#e1c75d',i,.3,j,.035,.5,.035);mesh(g,'cone','#eac76a',i,.58,j,.095,.23,.095);}for(const j of [-1,1]){mesh(g,'box','#a58d61',0,.4,j*1.3,3.9,.09,.08);for(let i=-1.8;i<2;i+=.6)mesh(g,'box','#a58d61',i,.3,j*1.3,.08,.6,.08);}house(g,2.2,-.2,.65,'#b67944');}
   for(const p of places){const group=new THREE.Group();group.position.set(p.x,.87,p.z);scene.add(group);let placeFlag;
     if(['capital','city'].includes(p.kind)){placeFlag=castle(group,p);group.scale.setScalar(p.id==='home'?1.04:.85);}
     else if(p.kind==='village'){
-      for(const [x,z,s] of [[-1.7,0,1],[.2,1.3,.8],[1.7,-.8,1.1],[-.3,-2,.8]])house(group,x,z,s);farm(group,-3.8,2.6);farm(group,2.5,3.5);
+      for(const [x,z,s] of [[-1.7,0,1],[.2,1.3,.8],[1.7,-.8,1.1],[-.3,-2,.8]])house(group,x,z,s);
       const mill=new THREE.Group();mill.position.set(-2,0,-2.3);group.add(mill);mesh(mill,'cylinder','#d6ceb1',0,1.1,0,.5,2.2,.5);mesh(mill,'cone','#6b6550',0,2.5,0,.78,.9,.78);const blades=new THREE.Group();blades.position.set(0,1.9,.59);for(let i=0;i<4;i++){const wing=mesh(blades,'box','#e8dbb5',0,.75,0,.22,1.5,.06);wing.geometry=wing.geometry.clone();wing.geometry.translate(0,.5,0);wing.position.y=0;wing.rotation.z=i*Math.PI/2;}mill.add(blades);mills.push(blades);placeFlag=flag(group,0,3,0,p.color);
-    }else if(p.kind==='camp'){for(const [x,z]of[[-1,0],[1.5,1],[0,-1.5]])mesh(group,new THREE.ConeGeometry(1.2,1.5,4),'#9b654c',x,.75,z);mesh(group,'sphere','#edaa56',0,.25,1.6,.4,.6,.4);placeFlag=flag(group,1.5,3,-1,p.color);}
+    }else if(p.kind==='camp'){for(const [x,z]of[[-1,0],[1.5,1],[0,-1.5]])mesh(group,new THREE.ConeGeometry(1.2,1.5,4),'#9b654c',x,.75,z);placeFlag=flag(group,1.5,3,-1,p.color);}
     else {for(let i=0;i<7;i++){const a=i/7*Math.PI*2;mesh(group,'cylinder','#b0b7a6',Math.cos(a)*2,1,Math.sin(a)*2,.3,2,.3);}mesh(group,'box','#a1aa96',0,.15,0,4.5,.25,4.5);mesh(group,'sphere','#465b57',0,.9,0,1.2,.8,1.2);}
     const ring=new THREE.Mesh(new THREE.RingGeometry(p.kind==='village'?5:6.2,p.kind==='village'?5.05:6.25,80),new THREE.MeshBasicMaterial({color:p.color,transparent:true,opacity:.6,side:THREE.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.set(p.x,1.1,p.z);borderGroup.add(ring);
     const label=document.createElement('button');label.className='place-label';label.dataset.id=p.id;label.setAttribute('aria-label',`Выбрать ${p.name}`);label.innerHTML=`<span class="place-dot"></span><span>${p.name}</span><small></small>`;label.style.setProperty('--faction',p.color);label.onclick=()=>onSelect(p.id);labelsHost.appendChild(label);
@@ -129,13 +132,15 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   }
   function showBuildings(v,buildings){
     const key=JSON.stringify([buildings||{},getState().places.find(p=>settlements.get(p.id)===v)?.devastated]);if(v.buildingKey===key)return;v.buildingKey=key;if(v.buildingGroup){v.group.remove(v.buildingGroup);v.buildingGroup.traverse(o=>{if(o.isMesh&&!Object.values(geometries).includes(o.geometry))o.geometry.dispose();});}
-    const g=new THREE.Group();v.group.add(g);v.buildingGroup=g;const b=buildings||{};if(getState().places.find(p=>settlements.get(p.id)===v)?.devastated)for(let i=0;i<9;i++)mesh(g,'sphere','#65645c',-3+i*.7,.15,-3+(i%3),.5,.24,.4);
-    if(b.farm){farm(g,-3.5,-3.6);if(b.farm>1)farm(g,3.8,-3.8);if(b.farm>2){mesh(g,'cylinder','#c6ac5e',-4.6,1.1,-1.8,.45,2.2,.45);}}
+    const root=new THREE.Group();v.group.add(root);v.buildingGroup=root;const levels=buildings||{};v.slots??={};for(const key of Object.keys(v.slots))if(!levels[key])delete v.slots[key];for(const key of Object.keys(levels).filter(k=>levels[k]>0))if(v.slots[key]===undefined)v.slots[key]=[0,1,2,3,4].find(i=>!Object.values(v.slots).includes(i));
+    const anchors={farm:[-3.5,-3.6],market:[-1.1,3.8],barracks:[3.7,0],lumber:[-4,.6],quarry:[4.3,-1.3],academy:[-1.3,-4.8],shrine:[2,-3],archery:[3.2,2.8],stable:[-3.6,2.6],hunting:[-3.3,-2.6],spoils:[3.3,2.5],mercenaries:[2.8,-2.4],excavation:[-3.2,-2.9],archive:[2.7,-2.9],runeforge:[-3.1,2.8]};
+    for(const [key,level]of Object.entries(levels).filter(([,level])=>level>0)){const b={[key]:level},g=new THREE.Group(),anchor=anchors[key]||[0,0],angle=(v.slots[key]/5)*Math.PI*2+Math.PI*.6;if(key!=='walls')g.position.set(Math.cos(angle)*5.4-anchor[0],0,Math.sin(angle)*5.4-anchor[1]);root.add(g);if(getState().places.find(p=>settlements.get(p.id)===v)?.devastated)for(let i=0;i<9;i++)mesh(g,'sphere','#65645c',-3+i*.7,.15,-3+(i%3),.5,.24,.4);
+    if(b.farm){farm(g,-3.5,-3.6);if(b.farm>1){mesh(g,'cylinder','#c6ac5e',-4.6,1.1,-1.8,.45,2.2,.45);}}
     if(b.market){for(let i=0;i<b.market+1;i++){const x=-2+i*1.25;mesh(g,'box','#a2885e',x,.4,3.8,.9,.7,.6);mesh(g,'box',i%2?'#cead5d':'#6d9890',x,1.2,3.8,1.1,.15,.9);for(const dx of [-.4,.4])mesh(g,'box','#a2885e',x+dx,.9,3.8,.05,1.1,.05);}}
     if(b.barracks){house(g,3.7,0,.9,'#586e83');for(let i=0;i<b.barracks;i++){mesh(g,'box','#6b543c',3.8+i*.2,.7,1.3,.06,1.3,.06);mesh(g,'box','#bfc3b2',3.8+i*.2,1.45,1.3,.04,.5,.04);}}
     if(b.lumber){house(g,-4,0,.6);for(let i=0;i<b.lumber+2;i++){const log=mesh(g,'cylinder','#86643b',-4,.18,1.2+i*.25,.17,1.4,.17);log.rotation.z=Math.PI/2;}}
     if(b.quarry){for(let i=0;i<b.quarry+2;i++)mesh(g,'sphere','#a2a69d',4.3,.25,-2+i*.35,.45,.35,.35);}
-    if(b.academy)house(g,-1.7,-3.5,.9,'#596780');
+    if(b.academy){mesh(g,'cylinder','#cec8ae',-1.3,1,-4.8,.8,2,.8);mesh(g,'cone','#596780',-1.3,2.7,-4.8,1.05,1.4,1.05);for(const dx of [-.65,.65])mesh(g,'box','#a9bdb9',-1.3+dx,1.1,-4.8,.08,.8,.18);mesh(g,'sphere','#d7c788',-1.3,3.5,-4.8,.17,.17,.17);}
     if(b.shrine){mesh(g,'cylinder','#a7bca5',2,1.1,-3,.5,2,.5);mesh(g,'sphere','#c1dbc7',2,2.3,-3,.3,.4,.3);}
     if(b.archery){house(g,2.8,2.8,.65,'#748d65');for(let i=0;i<2;i++){const target=mesh(g,'cylinder','#e2d1a7',3+i*.8,1.1,2.5,.35,.08,.35);target.rotation.x=Math.PI/2;mesh(g,'sphere','#b26450',3+i*.8,1.1,2.6,.12,.12,.04);}}
     if(b.stable){house(g,-3.6,2.6,.8,'#896846');for(const z of [2.4,3.2]){mesh(g,'sphere','#775341',-3.1,.7,z,.28,.3,.55);mesh(g,'sphere','#775341',-3.1,1.1,z+.4,.15,.35,.2);}}
@@ -146,14 +151,15 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     if(b.archive){house(g,2.7,-2.9,.9,'#69758b');mesh(g,'cylinder','#d2c2a0',2.7,2.1,-2.9,.5,.35,.5);}
     if(b.runeforge){house(g,-3.1,2.8,.7,'#536b70');mesh(g,'sphere','#73daca',-3.1,1.8,2.8,.35,.5,.35);}
     if(b.walls)for(const x of [-2.9,2.9])mesh(g,'box','#dad3bd',x,2.3,0,.45,b.walls*.3,5);
-    batchStaticParts(g);
+    }
+    batchStaticParts(root);
   }
   for(const p of places)showBuildings(settlements.get(p.id),getState().settlements?.[p.id]?.buildings||(p.id===(getState().home||'home')?getState().buildings:null));
   const smoke=[];
   for(const p of places){const v=settlements.get(p.id),g=v.group;
     if(p.kind==='ruins'){for(let i=0;i<3;i++)mesh(g,'sphere','#648459',Math.cos(i*2)*2.2,.25,Math.sin(i*2)*2.2,.6,.3,.5);continue;}
     for(const [x,z]of[[-2.2,2.5],[2.4,.6]]){mesh(g,'cylinder','#906b43',x,.35,z,.24,.7,.24);for(const y of [.12,.55])mesh(g,'cylinder','#51594f',x,y,z,.25,.065,.25);mesh(g,'box','#816843',x+.5,.25,z,.4,.5,.4);}
-    const cart=new THREE.Group();cart.position.set(-3.5,0,2);g.add(cart);mesh(cart,'box','#967248',0,.6,0,1.1,.2,.75);for(const side of [-1,1]){mesh(cart,'box','#a88a59',0,.87,side*.37,1.1,.38,.08);const wheel=mesh(cart,'cylinder','#514c37',side*.6,.33,0,.35,.08,.35);wheel.rotation.z=Math.PI/2;mesh(cart,'cylinder','#aa936b',side*.645,.33,0,.08,.09,.08).rotation.z=Math.PI/2;}mesh(cart,'box','#88673f',0,.38,.9,.08,.08,1.1);
+    const cart=new THREE.Group();cart.position.set(1.5,0,1.7);g.add(cart);mesh(cart,'box','#967248',0,.6,0,1.1,.2,.75);for(const side of [-1,1]){mesh(cart,'box','#a88a59',0,.87,side*.37,1.1,.38,.08);const wheel=mesh(cart,'cylinder','#514c37',side*.6,.33,0,.35,.08,.35);wheel.rotation.z=Math.PI/2;mesh(cart,'cylinder','#aa936b',side*.645,.33,0,.08,.09,.08).rotation.z=Math.PI/2;}mesh(cart,'box','#88673f',0,.38,.9,.08,.08,1.1);
     if(p.kind==='camp'){for(let i=0;i<8;i++){const a=i/8*Math.PI*2;mesh(g,'sphere','#777c70',Math.cos(a)*.55,.1,1.6+Math.sin(a)*.55,.17,.13,.17);}for(let i=0;i<3;i++){const flame=mesh(g,'cone',i%2?'#efaf55':'#d66c35',-.16+i*.16,.55,1.6,.16,.6,.16);flame.userData.fire=true;smoke.push({mesh:flame,fire:true,base:flame.position.clone(),phase:i});}const smokeMat=new THREE.MeshBasicMaterial({color:'#b2b4a4',transparent:true,opacity:.18,depthWrite:false});for(let i=0;i<4;i++){const puff=new THREE.Mesh(geometries.sphere,smokeMat);puff.position.set(0,1.6+i*.3,1.6);puff.scale.setScalar(.25);puff.userData.animate=true;g.add(puff);smoke.push({mesh:puff,base:puff.position.clone(),phase:i});}}
   }
   for(const v of settlements.values())batchStaticParts(v.group);
@@ -162,8 +168,8 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const effects=[];
   const dustMaterial=new THREE.MeshBasicMaterial({color:'#c7b998',transparent:true,opacity:.16,depthWrite:false});
   function armyModel(beast=false,color='#8bdcba',troops={}){const g=createArmyModel(mesh,flag,beast,color,troops);g.userData.key=JSON.stringify([troops,color]);g.userData.composition={...troops};const radius=beast?3.8:Math.max(1.2,Math.sqrt(g.userData.count||1)*.65),r=new THREE.Mesh(new THREE.RingGeometry(radius,radius+.09,48),new THREE.MeshBasicMaterial({color:'#ffe2a2',transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false}));r.rotation.x=-Math.PI/2;r.position.y=.04;r.visible=false;g.add(r);g.userData.selectionRing=r;scene.add(g);return g;}
-  function fallen(g,n,troops={}){g.updateMatrixWorld(true);const victims=g.userData.fighters.filter(f=>f.arms.length&&(g.userData.composition?.[f.type]||0)>(troops[f.type]||0)).slice(0,Math.min(4,n));for(const f of victims){if(!f.arms.length)continue;const body=f.group;scene.attach(body);for(const {pivot,knee}of f.legs){pivot.rotation.x=.35;knee.rotation.x=.5;}f.arms[0].rotation.z=-.8;f.arms[1].rotation.z=.65;effects.push({mesh:body,start:performance.now(),end:performance.now()+3200,fall:true,ground:Math.max(.85,height(body.position.x,body.position.z))+.19,baseY:body.position.y,baseX:body.rotation.x});}g.userData.hitAt=performance.now();}
-  function ensureArmy(id,beast,color,troops){let g=armyModels.get(id);const key=JSON.stringify([troops,color]);if(g&&!beast&&g.userData.key!==key){const old=g.userData.total||0;if(old>Object.values(troops).reduce((a,b)=>a+b,0))fallen(g,Math.ceil((old-Object.values(troops).reduce((a,b)=>a+b,0))/5),troops);const pos=g.position.clone(),rot=g.rotation.y;removeArmy(id,g);g=armyModel(beast,color,troops);g.position.copy(pos);g.rotation.y=rot;g.userData.placed=true;g.userData.hitAt=old>Object.values(troops).reduce((a,b)=>a+b,0)?performance.now():0;armyModels.set(id,g);}if(!g){g=armyModel(beast,color,troops);armyModels.set(id,g);}g.userData.total=Object.values(troops).reduce((a,b)=>a+b,0);return g;}
+  function fallen(g,n,troops={}){g.updateMatrixWorld(true);const victims=g.userData.fighters.filter(f=>f.arms.length&&(g.userData.composition?.[f.sourceType||f.type]||0)>(troops[f.sourceType||f.type]||0)).slice(0,Math.min(4,n));for(const f of victims){if(!f.arms.length)continue;const body=f.group;scene.attach(body);for(const {pivot,knee}of f.legs){pivot.rotation.x=.35;knee.rotation.x=.5;}f.arms[0].rotation.z=-.8;f.arms[1].rotation.z=.65;effects.push({mesh:body,start:performance.now(),end:performance.now()+3200,fall:true,ground:Math.max(.85,height(body.position.x,body.position.z))+.19,baseY:body.position.y,baseX:body.rotation.x});}g.userData.hitAt=performance.now();}
+  function ensureArmy(id,beast,color,troops){let g=armyModels.get(id);const key=JSON.stringify([troops,color]);if(g&&!beast&&g.userData.key!==key){const old=g.userData.total||0;if(old>Object.values(troops).reduce((a,b)=>a+b,0))fallen(g,Math.ceil((old-Object.values(troops).reduce((a,b)=>a+b,0))/5),troops);const poses=new Map();for(const f of g.userData.fighters){if(f.group.parent!==g)continue;const key=f.sourceType||f.type;const list=poses.get(key)||[];list.push({pos:f.group.position.clone(),baseZ:f.baseZ,walkPhase:f.walkPhase});poses.set(key,list);}const pos=g.position.clone(),rot=g.rotation.y;removeArmy(id,g);g=armyModel(beast,color,troops);for(const f of g.userData.fighters){const pose=poses.get(f.sourceType||f.type)?.shift();if(pose){f.group.position.copy(pose.pos);f.baseZ=pose.baseZ;f.walkPhase=pose.walkPhase;}}g.position.copy(pos);g.rotation.y=rot;g.userData.placed=true;g.userData.hitAt=old>Object.values(troops).reduce((a,b)=>a+b,0)?performance.now():0;armyModels.set(id,g);}if(!g){g=armyModel(beast,color,troops);armyModels.set(id,g);}g.userData.total=Object.values(troops).reduce((a,b)=>a+b,0);return g;}
   function removeArmy(id,g){scene.remove(g);g.userData.label?.remove();const i=flags.indexOf(g.userData.banner);if(i>=0)flags.splice(i,1);armyModels.delete(id);g.traverse(o=>{if(o.isMesh){if(!Object.values(geometries).includes(o.geometry))o.geometry.dispose();if(![...mats.values()].includes(o.material))o.material.dispose();}});}
   let selection=getState().home||'home',armySelection=null,frame=0,frameId,disposed=false,lastFrameAt=performance.now();
   const projected=new THREE.Vector3();
@@ -183,20 +189,22 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     for(const m of mills)m.rotation.z=frame*.008;
     waterUniform.value=performance.now()*.0008;
     for(let i=0;i<waterLines.length;i++){const l=waterLines[i];l.scale.x=.25+Math.pow(Math.sin(performance.now()*.0008+i),2)*.55;l.position.y=.05+Math.sin(performance.now()*.001+i)*.008;}
-    const active=new Set(),now=performance.now(),time=s.online?visualTime(s.time,s.receivedAt||now,now,s.speed):s.time;
+    const active=new Set(),now=performance.now(),desiredTime=s.online?visualTime(s.time,s.receivedAt||now,now,s.speed):s.time;
+    if(render.clock===undefined||s.speed===0)render.clock=desiredTime;else render.clock=Math.min(s.time,render.clock+Math.min(.1,(now-lastFrameAt)/1000)*s.speed*(1+THREE.MathUtils.clamp((desiredTime-render.clock)*2,-.15,.15)));const time=render.clock;
     const frameDelta=Math.min(.05,(now-lastFrameAt)/1000);lastFrameAt=now;
     for(const m of [...(s.mapMarches||s.marches),...(s.mapBeasts||[])]){
       active.add(m.id);const g=ensureArmy(m.id,m.beast,s.realmColors?.[m.owner]||'#8bdcba',m.troops||{});if(!g.userData.label){g.userData.label=document.createElement('button');g.userData.label.className='army-label';g.userData.label.onclick=e=>{e.stopPropagation();armySelection=m.id;onArmy(m.id);};labelsHost.append(g.userData.label);}const p=s.places.find(p=>p.id===m.target),origin=s.places.find(p=>p.id===(m.origin||s.home||'home'));
-      const path=m.route||findRoute(origin,p,places,map);if(!path)continue;
+      const previousPosition=g.position.clone();const path=m.route||findRoute(origin,p,places,map);if(!path)continue;
       let t=m.battle||m.phase==='fallen'?1:THREE.MathUtils.clamp((time-m.start)/(m.end-m.start),0,1);if(m.returning)t=1-t;
-      const point=routePoint(path,t);const destination=new THREE.Vector3(m.beast&&m.battle?p.x:point.x,Math.abs(point.x-riverX(point.z))<3.6?1.02:Math.max(.8,height(point.x,point.z))+.1,m.beast&&m.battle?p.z:point.z);if(g.userData.placed)g.position.lerp(destination,Math.min(1,(now-(g.userData.at||now))/1000*12));else g.position.copy(destination);g.userData.placed=true;g.userData.at=now;
-      const label=g.userData.label;const labelText=`${m.beast?'Древний зверь':s.realmNames?.[m.owner]||'Армия'} · ${m.beast?'':Object.values(m.troops||{}).reduce((a,b)=>a+b,0)+' воинов · '}${m.battle?'БОЙ · нажмите':m.returning?'возвращение':Math.max(0,Math.ceil(m.end-s.time))+' сек.'}`;if(label.dataset.text!==labelText){label.dataset.text=labelText;label.textContent=labelText;}label.style.zIndex=m.battle||m.beast?'8':'4';label.style.borderColor=s.realmColors?.[m.owner]||'#e0c27c';projected.copy(g.position).add(new THREE.Vector3(0,m.beast?8:4.8,0)).project(camera);label.style.transform=labelTransform(projected,w,h,m.beast?165:0);label.hidden=projected.z>1||projected.z<-1;
-      label.classList.toggle('in-battle',!!m.battle);label.classList.toggle('beast-label',!!m.beast);label.classList.toggle('selected',armySelection===m.id);label.title=label.textContent;
+      const point=m.encounter?.point||routePoint(path,t);const destination=new THREE.Vector3(m.beast&&m.battle?p.x:point.x,Math.abs(point.x-riverX(point.z))<3.6?1.02:Math.max(.8,height(point.x,point.z))+.1,m.beast&&m.battle?p.z:point.z);if(g.userData.placed)g.position.lerp(destination,Math.min(1,(now-(g.userData.at||now))/1000*12));else g.position.copy(destination);g.userData.placed=true;g.userData.at=now;
+      const label=g.userData.label;const labelText=`${m.beast?'Древний зверь':s.realmNames?.[m.owner]||'Армия'} · ${m.beast?'':Object.values(m.troops||{}).reduce((a,b)=>a+b,0)+' воинов · '}${m.battle||m.encounter?'БОЙ · нажмите':m.returning?'возвращение':Math.max(0,Math.ceil(m.end-s.time))+' сек.'}`;if(label.dataset.text!==labelText){label.dataset.text=labelText;label.textContent=labelText;}label.style.zIndex=m.battle||m.beast?'8':'4';label.style.borderColor=s.realmColors?.[m.owner]||'#e0c27c';projected.copy(g.position).add(new THREE.Vector3(0,m.beast?8:4.8,0)).project(camera);label.style.transform=labelTransform(projected,w,h,m.beast?165:0);label.hidden=projected.z>1||projected.z<-1;
+      label.classList.toggle('in-battle',!!m.battle||!!m.encounter);label.classList.toggle('beast-label',!!m.beast);label.classList.toggle('selected',armySelection===m.id);label.title=label.textContent;
       if(m.beast){let hp=label.querySelector('.beast-health');if(!hp){hp=document.createElement('span');hp.className='beast-health';hp.innerHTML='<i></i>';label.append(hp);}hp.setAttribute('role','meter');hp.setAttribute('aria-label','Здоровье древнего зверя');hp.setAttribute('aria-valuemin','0');hp.setAttribute('aria-valuemax','2400');hp.setAttribute('aria-valuenow',String(m.health||0));hp.firstChild.style.width=(Math.max(0,Math.min(1,m.health/2400))*100)+'%';}
       if(!g.userData.selectionRing){const r=new THREE.Mesh(new THREE.RingGeometry(1.4,1.5,48),new THREE.MeshBasicMaterial({color:'#ffe2a2',transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false}));r.rotation.x=-Math.PI/2;r.position.y=.06;g.add(r);g.userData.selectionRing=r;}g.userData.selectionRing.visible=armySelection===m.id;
-      const angle=point.angle+(m.returning?Math.PI:0);g.rotation.y+=Math.atan2(Math.sin(angle-g.rotation.y),Math.cos(angle-g.rotation.y))*.12;
+      const angle=point.angle+(m.returning?Math.PI:0);g.rotation.y+=Math.atan2(Math.sin(angle-g.rotation.y),Math.cos(angle-g.rotation.y))*(1-Math.exp(-8*frameDelta));
       for(const leg of g.userData.legs)leg.leg.rotation.x=m.battle?Math.sin(time*5+leg.phase)*.12:Math.sin(time*(m.beast?3:9)+leg.phase)*.45*leg.side;
       g.rotation.z=m.beast&&m.phase==='fallen'?1.3:0;
+      if(m.beast&&!m.battle&&s.speed!==0&&now-(g.userData.dustAt||0)>450&&effects.length<80){g.userData.dustAt=now;for(const side of [-1,1]){const dust=new THREE.Mesh(geometries.sphere,dustMaterial);dust.position.set(g.position.x+side*1.5,g.position.y+.1,g.position.z);dust.scale.set(.35,.18,.35);scene.add(dust);effects.push({mesh:dust,end:now+700,dust:true,velocity:new THREE.Vector3(side*.009,.009,-.012)});}}
       if(m.beast&&m.battle){
         const attackPhase=((time-m.start)%4)/4;g.rotation.x=-Math.sin(attackPhase*Math.PI)*.24;g.position.y+=Math.sin(attackPhase*Math.PI)*.55;
         g.rotation.y=Math.atan2(p.x-origin.x,p.z-origin.z);
@@ -207,20 +215,21 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
       }else g.rotation.x=0;
       if(g.userData.aura)g.userData.aura.material.opacity=.3+Math.sin(time*3)*.2;
       if(g.userData.jaw)g.userData.jaw.rotation.x=m.battle?Math.max(0,Math.sin(time*1.6))*.45:.06+Math.sin(time*.6)*.04;
-      animateArmy(g,time,m.battle?'attack':'walk',Math.max(0,1-(now-(g.userData.hitAt||0))/500));
+      animateArmy(g,time,m.battle||m.encounter?'attack':s.speed===0?'idle':routeLength(path)/m.duration>.9?'run':'walk',Math.max(0,1-(now-(g.userData.hitAt||0))/500),g.position.distanceTo(previousPosition)/Math.max(.001,frameDelta),frameDelta);
       if(s.speed!==0&&m.battle&&!m.beast&&now-(g.userData.sparkAt||0)>600&&effects.length<64){g.userData.sparkAt=now;for(let i=0;i<3;i++){const spark=mesh(scene,'sphere',i%2?'#e5bb73':'#d7d8bb',g.position.x+(Math.random()-.5)*2,g.position.y+.8,g.position.z+1.2,.035,.1,.035);effects.push({mesh:spark,end:now+300,velocity:new THREE.Vector3((Math.random()-.5)*.025,.012,(Math.random()-.5)*.025)});}}
-      for(const f of g.userData.fighters){
-        if(m.battle&&['archer','crossbow','catapult'].includes(f.type)){if(!f.shot){f.shot=new THREE.Group();if(f.type==='catapult')mesh(f.shot,'sphere','#6c7369',0,0,0,.18,.18,.18);else{mesh(f.shot,'cylinder','#ae8855',0,0,0,.018,.65,.018).rotation.x=Math.PI/2;mesh(f.shot,'cone','#d3ddde',0,0,.38,.045,.14,.045).rotation.x=Math.PI/2;}g.add(f.shot);}const phase=(time*1.1+f.phase)%1;f.shot.position.set(f.group.position.x,1+Math.sin(phase*Math.PI)*1.5,f.group.position.z+phase*5);f.shot.rotation.x=-Math.cos(phase*Math.PI)*.5;f.shot.visible=phase>.12&&phase<.92;}}
+      for(let index=0;index<g.userData.fighters.length;index++){const f=g.userData.fighters[index];
+        if(!m.battle&&!m.encounter){const columns=Math.max(2,Math.ceil(Math.sqrt(g.userData.fighters.length))),row=Math.floor(index/columns),ahead=routePoint(path,Math.max(0,Math.min(1,t+(m.returning?-1:1)*((f.type==='knight'?2.2:0)-row*.8)/Math.max(1,routeLength(path)))));const narrow=Math.abs(ahead.x-riverX(ahead.z))<4,offset=(index%columns-(columns-1)/2)*(narrow?.18:.65),angle=ahead.angle+(m.returning?Math.PI:0),rawX=ahead.x+Math.cos(angle)*offset,rawZ=ahead.z-Math.sin(angle)*offset,obstructed=blocked(rawX,rawZ,places,map),x=obstructed?ahead.x:rawX,z=obstructed?ahead.z:rawZ;const local=g.worldToLocal(new THREE.Vector3(x,Math.abs(x-riverX(z))<3.6?1.02:height(x,z)+.08,z));f.group.position.x=THREE.MathUtils.lerp(f.group.position.x,local.x,.2);f.baseZ=THREE.MathUtils.lerp(f.baseZ,local.z,.2);f.group.position.z=f.baseZ;f.group.position.y=local.y;}
+        if((m.battle||m.encounter)&&['archer','crossbow','catapult'].includes(f.type)){if(!f.shot){f.shot=new THREE.Group();if(f.type==='catapult')mesh(f.shot,'sphere','#6c7369',0,0,0,.18,.18,.18);else{mesh(f.shot,'cylinder','#ae8855',0,0,0,.018,.65,.018).rotation.x=Math.PI/2;mesh(f.shot,'cone','#d3ddde',0,0,.38,.045,.14,.045).rotation.x=Math.PI/2;}g.add(f.shot);}const phase=(time*1.1+f.phase)%1;f.shot.position.set(f.group.position.x,1+Math.sin(phase*Math.PI)*1.5,f.group.position.z+phase*5);f.shot.rotation.x=-Math.cos(phase*Math.PI)*.5;f.shot.visible=phase>.12&&phase<.92;}}
 
       g.userData.banner?.material.color.set(m.battle?'#ef9577':s.realmColors?.[m.owner]||'#8bdcba');
     }
-    for(const p of s.places){const data=s.settlements?.[p.id],troops=data?.composition||p.garrison||{},count=Object.values(troops).reduce((a,b)=>a+b,0),id='guard-'+p.id;if(count>0){active.add(id);const g=ensureArmy(id,false,p.color,troops);g.position.set(p.x,1.05,p.z+6);g.scale.setScalar(.78);g.userData.banner?.material.color.set(p.color);
+    for(const p of s.places){const data=s.settlements?.[p.id],troops=data?.composition||p.garrison||{},count=Object.values(troops).reduce((a,b)=>a+b,0),id='guard-'+p.id;if(count>0){active.add(id);const g=ensureArmy(id,false,p.color,troops);g.position.set(p.x,height(p.x,p.z+(p.z>0?-7.5:7.5))+.07,p.z+(p.z>0?-7.5:7.5));g.scale.setScalar(.78);g.userData.banner?.material.color.set(p.color);
       if(!g.userData.label){g.userData.label=document.createElement('button');g.userData.label.className='army-label guard-label';g.userData.label.onclick=e=>{e.stopPropagation();armySelection=id;onArmy(id);};labelsHost.append(g.userData.label);}g.userData.label.textContent=`⚔ ${count}`;g.userData.label.title=`Гарнизон ${p.name}: ${count} воинов, дух ${Math.round(data?.morale??80)}. Нажмите для состава.`;projected.copy(g.position).add(new THREE.Vector3(0,2.8,0)).project(camera);g.userData.label.style.transform=labelTransform(projected,w,h);g.userData.label.hidden=projected.z>1||projected.z<-1;g.userData.label.classList.toggle('selected',selection===p.id||armySelection===id);
-      g.userData.selectionRing.visible=armySelection===id;g.rotation.y=Math.PI;const enemy=(s.mapMarches||[]).find(m=>m.battle&&m.target===p.id);const enemyModel=enemy&&armyModels.get(enemy.id);if(enemyModel)g.rotation.y=Math.atan2(enemyModel.position.x-g.position.x,enemyModel.position.z-g.position.z);const fighting=(s.mapMarches||[]).some(m=>m.battle&&m.target===p.id)||(s.mapBeasts||[]).some(b=>b.battle&&b.target===p.id);animateArmy(g,time,fighting?'attack':'idle',Math.max(0,1-(now-(g.userData.hitAt||0))/500));
+      g.userData.selectionRing.visible=armySelection===id;g.rotation.y=p.z>0?Math.PI:0;const enemy=(s.mapMarches||[]).find(m=>m.battle&&m.target===p.id);const enemyModel=enemy&&armyModels.get(enemy.id);if(enemyModel)g.rotation.y=Math.atan2(enemyModel.position.x-g.position.x,enemyModel.position.z-g.position.z);const fighting=(p.guardHitAt||0)>s.time-1&&(p.guardHitAt||0)>0||(s.mapMarches||[]).some(m=>m.battle&&m.target===p.id)||(s.mapBeasts||[]).some(b=>b.battle&&b.target===p.id);for(const f of g.userData.fighters)f.baseZ=Math.abs(f.baseZ);animateArmy(g,time,fighting?'attack':'idle',Math.max(0,1-(now-(g.userData.hitAt||0))/500));for(const f of g.userData.fighters){const foot=g.localToWorld(new THREE.Vector3(f.group.position.x,0,f.group.position.z));f.group.position.y=(height(foot.x,foot.z)+.06-g.position.y)/.78;}
     }}
     for(const puff of smoke){const phase=(time*.7+puff.phase*.25)%1;if(puff.fire)puff.mesh.scale.y=.6+Math.sin(time*8+puff.phase)*.15;else{puff.mesh.position.y=puff.base.y+phase*1.4;puff.mesh.position.x=puff.base.x+phase*.6;puff.mesh.scale.setScalar(.2+phase*.4);}}
     for(const v of settlements.values()){const shake=Math.max(0,1-(now-(v.impactAt||0))/500);v.group.rotation.z=Math.sin(now*.07)*.035*shake;}
-    for(const e of effects){if(e.velocity){e.mesh.position.addScaledVector(e.velocity,frameDelta*60);e.velocity.y-=.09*frameDelta;e.mesh.rotation.x+=4.8*frameDelta;}if(e.fall){const t=Math.min(1,(now-e.start)/650);e.mesh.rotation.x=e.baseX+t*Math.PI/2;e.mesh.position.y=THREE.MathUtils.lerp(e.baseY,e.ground,t);e.mesh.scale.setScalar(Math.max(0,Math.min(1,(e.end-now)/400)));}}
+    for(const e of effects){if(e.velocity){e.mesh.position.addScaledVector(e.velocity,frameDelta*60);if(e.dust)e.mesh.scale.multiplyScalar(1+frameDelta*.8);else e.velocity.y-=.09*frameDelta;e.mesh.rotation.x+=4.8*frameDelta;}if(e.fall){const t=Math.min(1,(now-e.start)/650);e.mesh.rotation.x=e.baseX+t*Math.PI/2;e.mesh.position.y=THREE.MathUtils.lerp(e.baseY,e.ground,t);e.mesh.scale.setScalar(Math.max(0,Math.min(1,(e.end-now)/400)));}}
     for(let i=effects.length-1;i>=0;i--)if(effects[i].end<now){const e=effects[i];scene.remove(e.mesh);if(e.fall)e.mesh.traverse(o=>{if(o.isMesh&&!Object.values(geometries).includes(o.geometry))o.geometry.dispose();});effects.splice(i,1);}
     for(const [id,g]of armyModels)if(!active.has(id))removeArmy(id,g);
     renderer.render(scene,camera);

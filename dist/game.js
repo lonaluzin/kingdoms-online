@@ -33,6 +33,21 @@ export const UNITS = {
   ram: { name: 'Тараны', type: 'Осада', icon: 'siege', power: 11, cost: { gold: 50, wood: 70, food: 10 }, req: 1, text: 'Двойная сила против городов' },
   tower: { name: 'Осадные башни', type: 'Осада', icon: 'castle', power: 14, cost: { gold: 70, wood: 90, food: 12 }, req: 2, text: 'Двойная сила против городов' },
 };
+// Tier, role and speed are authoritative and shared by UI and simulation.
+Object.assign(UNITS,{
+ militia:{name:'Ополченцы',type:'Пехота',icon:'swords',power:3,cost:{gold:10,food:5},req:0,text:'Дешёвая защита; уязвимы для кавалерии'},
+ scout:{name:'Конные разведчики',type:'Кавалерия',icon:'horse',power:5,cost:{gold:24,food:12},req:0,text:'Быстрая лёгкая конница; боится копий'},
+ veteran:{name:'Ветераны',type:'Пехота',icon:'swords',power:7,cost:{gold:29,food:12},req:1,text:'Сильны против лёгкой пехоты'},
+ pike:{name:'Пикинёры',type:'Пехота',icon:'spear',power:5,cost:{gold:24,wood:12,food:10},req:1,text:'Пики останавливают конницу; уязвимы для стрел'},
+ ranger:{name:'Егеря',type:'Стрелки',icon:'bow',power:6,cost:{gold:26,wood:15,food:9},req:1,text:'Против лёгких войск; избегайте ближнего боя'},
+ guard:{name:'Королевская гвардия',type:'Пехота',icon:'shield',power:10,cost:{gold:58,stone:14,food:20},req:3,text:'Тяжёлая броня; уязвимы для арбалетов'},
+ halberd:{name:'Алебардисты',type:'Пехота',icon:'spear',power:8,cost:{gold:44,wood:20,food:17},req:3,text:'Элитная защита от конницы; уязвимы для стрел'},
+ marksman:{name:'Королевские стрелки',type:'Стрелки',icon:'bow',power:10,cost:{gold:52,wood:24,food:18},req:3,text:'Пробивают броню; кавалерия опасна'},
+ paladin:{name:'Королевские рыцари',type:'Кавалерия',icon:'horse',power:17,cost:{gold:95,food:36},req:3,text:'Сокрушают стрелков; пики сильнее дорогой брони'}
+});
+for(const [k,u] of Object.entries(UNITS)){u.tier=['guard','halberd','marksman','paladin','tower'].includes(k)?3:['shield','crossbow','knight','catapult','ram','veteran','pike','ranger'].includes(k)?2:1;u.role=['spear','pike','halberd'].includes(k)?'antiCavalry':['shield','guard','veteran'].includes(k)?'heavy':u.type==='Кавалерия'?'cavalry':u.type==='Стрелки'?'ranged':u.type==='Осада'?'siege':'light';u.speed=u.role==='cavalry'?1.05:u.role==='siege'?.5:u.role==='heavy'?.65:.72;}
+export function armySpeed(troops){const count=Math.max(1,totalTroops(troops));return Object.entries(troops).reduce((sum,[k,n])=>sum+(UNITS[k]?.speed||.72)*n,0)/count;}
+export function counterPower(troops,enemy={},state={techs:{}},target){const count=Math.max(1,totalTroops(enemy));return Math.round(Object.entries(troops).reduce((sum,[k,n])=>{const u=UNITS[k];if(!u)return sum;let factor=1;for(const [e,qty]of Object.entries(enemy)){const other=UNITS[e];if(!other)continue;let match=1;if(u.role==='antiCavalry'&&other.role==='cavalry')match=2.6;if(u.role==='cavalry'&&['light','ranged'].includes(other.role))match=1.75;if(u.role==='cavalry'&&other.role==='antiCavalry')match=.45;if(u.role==='ranged'&&other.role==='antiCavalry')match=1.5;if(u.role==='ranged'&&other.role==='cavalry')match=.55;if(['crossbow','marksman'].includes(k)&&other.role==='heavy')match=1.7;if(u.role==='heavy'&&other.role==='light')match=1.35;factor+=(match-1)*qty/count;}return sum+n*u.power*factor*(target?.kind==='city'&&u.role==='siege'?2:1);},0)*(1+(state.techs?.tactics||0)*.15));}
 export const TECHS = {
   harvest: { name: 'Севооборот', icon: 'wheat', text: '+25% производства провизии за уровень', cost: { gold: 260, wood: 100 } },
   tactics: { name: 'Военное дело', icon: 'swords', text: '+15% силы войска за уровень', cost: { gold: 320, stone: 80 } },
@@ -78,7 +93,7 @@ export function income(s) {
   if(s.map==='forest')r.wood+=25;else if(s.map==='hills')r.stone+=25;else if(s.map==='valley')r.food+=25;
   for (const [key,b] of Object.entries(BUILDINGS)) for (const [res,v] of Object.entries(b.income)) r[res] += v * (s.buildings[key]||0) * ((s.places.find(p=>p.id===(s.home||'home'))?.occupationUntil||0)>s.time?.5:1);
   r.gold += Object.entries(s.relations).filter(([k,r])=>!r.group||r.group===k).map(([,r])=>r).filter(x => x.trade && x.status !== 'war').length * 65;
-  for (const p of s.places) if (p.owner === (s.playerId || 'player') && p.id !== (s.home || 'home')) { const efficiency=(p.occupationUntil||0)>s.time?.5:1; for(const [key,b] of Object.entries(BUILDINGS))for(const [res,v] of Object.entries(b.income))r[res]+=v*(p.buildings?.[key]||0)*efficiency; r.gold += 30*efficiency; r[p.kind === 'village' ? 'food' : 'stone'] += 45*efficiency; }
+  for (const p of s.places) if (p.owner === (s.playerId || 'player') && p.id !== (s.home || 'home')) { const efficiency=(p.occupationUntil||0)>s.time?.5:1; for(const [key,b] of Object.entries(BUILDINGS))for(const [res,v] of Object.entries(b.income))r[res]+=v*(p.buildings?.[key]||0)*efficiency; r.gold += (p.strategic?110:30)*efficiency; r[p.kind === 'village' ? 'food' : 'stone'] += 45*efficiency; }
   r.food *= 1 + s.techs.harvest * .25;
   if (s.events.some(e => e.type === 'drought' && e.end > s.time)) r.food *= .45;
   r.food -= s.places.filter(p=>p.owner===(s.playerId||'player')).reduce((n,p)=>n+totalTroops(p.garrison||{})*.6,0);
@@ -121,6 +136,7 @@ export function act(s, type, args = {}) {
   if (type === 'recruit') {
     const u = UNITS[args.key], count = Number(args.count);
     if (!u || !Number.isInteger(count) || count < 1 || count > 100) return fail('Выберите от 1 до 100 воинов');
+    if(u.tier===3&&s.techs.tactics<1)return fail('Тир III требует исследования «Военное дело»');
     if (militaryLevel(buildings,u) < u.req) return fail(`Нужны казармы уровня ${u.req}`);
     if (localQueue.filter(q => q.type === 'recruit').length >= 3) return fail('Очередь найма заполнена');
     const cost = costAt(u.cost,0,count);
@@ -177,7 +193,8 @@ export function act(s, type, args = {}) {
     if (type==='march' && s.relations[p.id] && s.relations[p.id].status !== 'war') return fail('Перед походом объявите войну в окне дипломатии');
     const fraction = Number(args.fraction ?? 1);
     if (![.25,.5,.75,1].includes(fraction)) return fail('Неверная доля войска');
-    const moving = Object.fromEntries(Object.entries(troops).map(([k,v]) => [k,Math.floor(v * fraction)]));
+    if(args.units!==undefined&&(!args.units||typeof args.units!=='object'||Array.isArray(args.units)||Object.entries(args.units).some(([k,n])=>!Object.hasOwn(UNITS,k)||!Number.isInteger(n)||n<0||n>(troops[k]||0))))return fail('Недопустимый состав отряда');
+    const moving = args.units?{...args.units}:Object.fromEntries(Object.entries(troops).map(([k,v]) => [k,Math.floor(v * fraction)]));
     if (!totalTroops(moving)) return fail('В столице нет войск для похода');
     if (s.resources.food < 40) return fail('Для похода нужно 40 провизии');
     pay(s,{food:40}); for (const [k,v] of Object.entries(moving)) troops[k] -= v;

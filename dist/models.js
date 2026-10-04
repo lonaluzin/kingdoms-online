@@ -20,14 +20,14 @@ export function createArmyModel(mesh,flag,beast,color,troops){
  }else{
   const figures=formation(troops),columns=Math.max(2,Math.ceil(Math.sqrt(figures.length)));g.userData.count=figures.length;
   for(let i=0;i<figures.length;i++){
-   const {type}=figures[i],u=new THREE.Group();u.position.set((i%columns-(columns-1)/2)*.88,0,-Math.floor(i/columns)*1.06);g.add(u);const fighter={group:u,type,phase:i*.63,baseZ:u.position.z,arms:[],legs:[],horseLegs:[]};g.userData.fighters.push(fighter);
+   const sourceType=figures[i].type,type=({militia:'sword',scout:'knight',veteran:'sword',pike:'spear',ranger:'archer',guard:'shield',halberd:'spear',marksman:'crossbow',paladin:'knight'})[sourceType]||sourceType,u=new THREE.Group();u.position.set((i%columns-(columns-1)/2)*.88,0,-Math.floor(i/columns)*1.06);g.add(u);const fighter={group:u,type,sourceType,phase:(figures.slice(0,i).filter(f=>f.type===sourceType).length*.63+sourceType.length),baseZ:u.position.z,arms:[],legs:[],horseLegs:[]};g.userData.fighters.push(fighter);
    if(['catapult','ram','tower'].includes(type)){
     mesh(u,'box','#725737',0,.3,0,.5,.18,.65);for(const x of [-.27,.27])for(const z of [-.24,.24]){const wheel=mesh(u,'cylinder','#473b2b',x,.18,z,.17,.12,.17);wheel.rotation.z=Math.PI/2;}
     if(type==='catapult'){const arm=new THREE.Group();arm.position.set(0,.65,0);u.add(arm);mesh(arm,'box','#a78958',0,.35,0,.08,1.1,.08);mesh(arm,'sphere','#666a65',0,.75,.1,.17,.17,.17);arm.rotation.x=.6;fighter.siegeArm=arm;for(const x of [-.2,.2])mesh(u,'box','#725737',x,.62,0,.08,.7,.08);}
     else if(type==='tower')mesh(u,'box','#977649',0,.8,0,.5,1.1,.5);
     else{mesh(u,'cylinder','#ad8958',0,.62,0,.16,.8,.16).rotation.x=Math.PI/2;mesh(u,'cone',color,0,.95,0,.55,.45,.55);}continue;
    }
-   const rider=type==='knight',ranged=['archer','crossbow'].includes(type),y=rider?.74:0;
+   const rider=type==='knight',ranged=['archer','crossbow'].includes(type),y=rider?.62:0;
    const steel='#b6c2c3',darkSteel='#586776',leather='#664832',skin='#d4ac85';
    if(rider){
     mesh(u,'sphere',leather,0,.61,0,.29,.3,.56);mesh(u,'sphere',leather,0,.93,.38,.2,.38,.22).rotation.x=-.35;
@@ -72,6 +72,8 @@ export function createArmyModel(mesh,flag,beast,color,troops){
    // Move the weapon assembly into the hand pivot so swings remain anatomically connected.
    const weapons=u.children.filter(o=>o.isMesh&&o.position.x>.24&&o.position.y>.5+y);
    for(const weapon of weapons)fighter.arms[1].attach(weapon);
+   if(['guard','halberd','marksman','paladin'].includes(sourceType)){mesh(u,'box','#d2b46d',0,.91+y,.15,.25,.045,.04);mesh(u,'cone',color,0,1.34+y,-.05,.08,.3,.08);}
+   if(sourceType==='militia')mesh(u,'box','#997951',0,.68,.17,.3,.34,.035);
    u.scale.setScalar(1.13);
   }
   g.userData.banner=flag(g,0,2.6,.3,color);
@@ -91,16 +93,16 @@ export function batchStaticParts(root){
  }
 }
 
-export function animateArmy(g,time,mode='idle',hit=0){
+export function animateArmy(g,time,mode='idle',hit=0,velocity,dt=1/60){
  for(const f of g.userData.fighters){
-  const moving=mode==='walk',fighting=mode==='attack',phase=time*(f.type==='knight'?7:8)+f.phase;
-  const pulse=Math.max(0,Math.sin(time*4.8+f.phase)),ranged=['archer','crossbow'].includes(f.type);
+  const moving=mode==='walk'||mode==='run',fighting=mode==='attack',phase=velocity===undefined?time*(f.type==='knight'?7:8)+f.phase:((f.walkPhase=(f.walkPhase??f.phase)+(moving?Math.min(15,velocity)*dt*(f.type==='knight'?5:8):0)));
+  const blend=1-Math.exp(-16*dt),running=mode==='run';const pulse=Math.max(0,Math.sin(time*4.8+f.phase)),ranged=['archer','crossbow'].includes(f.type);
   if(f.siegeArm)f.siegeArm.rotation.x=.6+(fighting?pulse*.8:0);
   f.group.position.z=f.baseZ+(fighting&&f.type==='ram'?pulse*.2:0);
   f.group.position.y=moving?Math.abs(Math.sin(phase))*.035:Math.sin(time*1.4+f.phase)*.012;
   f.group.rotation.x=hit>0?-.25*hit:fighting&&!ranged?pulse*.12:0;
-  for(const {pivot,knee,side} of f.legs||[]){const stride=moving?Math.sin(phase)*side*.48:0;pivot.rotation.x=stride;knee.rotation.x=moving?Math.max(0,-stride)*1.2:0;}
-  for(let i=0;i<(f.arms||[]).length;i++){const arm=f.arms[i];arm.rotation.x=moving?-Math.sin(phase)*(i?1:-1)*.35:fighting?(ranged?-1.2+(i?pulse*.3:0):i?-pulse*1.35:-.45):Math.sin(time*1.4+f.phase)*.025;arm.rotation.z=(i?1:-1)*.12;}
+  for(const {pivot,knee,side} of f.legs||[]){const rider=f.horseLegs.length>0,stride=rider?-.6:moving?Math.sin(phase)*side*(running?.64:.48):0;pivot.rotation.z=rider?side*.55:0;pivot.rotation.x=THREE.MathUtils.lerp(pivot.rotation.x,stride,blend);knee.rotation.x=THREE.MathUtils.lerp(knee.rotation.x,rider?1.2:moving?Math.max(0,-stride)*1.2:0,blend);}
+  for(let i=0;i<(f.arms||[]).length;i++){const arm=f.arms[i];const pose=f.horseLegs.length&&!fighting?-.65:moving?-Math.sin(phase)*(i?1:-1)*(running?.5:.35):fighting?(ranged?-1.2+(i?pulse*.3:0):i?-pulse*1.35:-.45):Math.sin(time*1.4+f.phase)*.025;arm.rotation.x=THREE.MathUtils.lerp(arm.rotation.x,pose,blend);arm.rotation.z=(i?1:-1)*.12;}
   for(const {pivot,phase:offset}of f.horseLegs||[])pivot.rotation.x=moving?Math.sin(phase+offset)*.5:0;
   if(f.shot)f.shot.visible=fighting;
  }
