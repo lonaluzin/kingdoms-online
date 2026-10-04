@@ -24,12 +24,41 @@ export function createArmyModel(mesh,flag,beast,color,troops){
     else if(type==='tower')mesh(u,'box','#977649',0,.8,0,.5,1.1,.5);
     else{mesh(u,'cylinder','#ad8958',0,.62,0,.16,.8,.16).rotation.x=Math.PI/2;mesh(u,'cone',color,0,.95,0,.55,.45,.55);}continue;
    }
-   const rider=type==='knight',y=rider?.65:0;
-   if(rider){mesh(u,'sphere','#735342',0,.5,0,.3,.25,.55);mesh(u,'box','#735342',0,.75,.4,.22,.55,.2);for(const x of [-.2,.2])for(const z of [-.3,.3]){const leg=mesh(u,'box','#493c32',x,.2,z,.08,.45,.08);g.userData.legs.push({leg,side:x<0?-1:1,phase:i+z});}}
-   mesh(u,'box',color,0,.62+y,0,.29,.44,.22);mesh(u,'sphere','#aeb7b0',0,1.04+y,0,.17,.2,.17);
-   if(!rider)for(const side of [-1,1]){const leg=mesh(u,'box','#3b4a43',side*.09,.27,0,.11,.4,.12);g.userData.legs.push({leg,side,phase:i*.45});}
-   if(['archer','crossbow'].includes(type)){mesh(u,'box','#8e7351',.2,.8+y,.1,type==='archer'?.045:.42,type==='archer'?.65:.06,.05).rotation.z=.3;mesh(u,'box','#dad5bf',.22,.8+y,.1,.04,.04,.55);}
-   else{const spear=type==='spear'||rider;mesh(u,'box',spear?'#8e7351':'#cad3cd',.23,.9+y,0,.055,spear?1.25:.65,.05);if(spear)mesh(u,'cone','#cbd1ca',.23,1.58+y,0,.085,.23,.085);mesh(u,'box',type==='shield'?'#697f86':color,-.23,.65+y,.1,.07,type==='shield'?.65:.4,.3);}
+   const rider=type==='knight',ranged=['archer','crossbow'].includes(type),y=rider?.74:0;
+   const steel='#b6c2c3',darkSteel='#586776',leather='#664832',skin='#d4ac85';
+   if(rider){
+    mesh(u,'sphere',leather,0,.61,0,.29,.3,.56);mesh(u,'sphere',leather,0,.93,.38,.2,.38,.22).rotation.x=-.35;
+    mesh(u,'sphere',leather,0,1.1,.58,.16,.19,.29);for(const x of [-.09,.09])mesh(u,'cone',leather,x,1.32,.48,.055,.2,.055);
+    mesh(u,'box',darkSteel,0,.89,-.06,.48,.06,.39);mesh(u,'box',color,0,.72,-.04,.59,.38,.37);
+    for(const x of [-.2,.2])for(const z of [-.3,.3]){const leg=mesh(u,'cylinder','#48372e',x,.28,z,.055,.48,.055);g.userData.legs.push({leg,side:x<0?-1:1,phase:i+z});mesh(u,'box','#252e2b',x,.06,z+.04,.11,.11,.19);}
+    mesh(u,'cone','#322d2b',0,.67,-.61,.1,.48,.1).rotation.x=-.65;
+   }
+   mesh(u,'cylinder',ranged?leather:darkSteel,0,.68+y,0,.18,.43,.14);
+   mesh(u,'box',color,0,.65+y,.13,.22,.4,.055);mesh(u,'cylinder','#433a2d',0,.45+y,0,.19,.07,.15);
+   mesh(u,'sphere',skin,0,1.03+y,.035,.14,.17,.14);mesh(u,'sphere',ranged?'#5c7153':steel,0,1.12+y,-.025,.17,.13,.17);
+   if(!ranged){mesh(u,'box',darkSteel,0,1.04+y,.15,.23,.055,.045);mesh(u,'cone',steel,0,1.25+y,0,.09,.13,.09);}
+   else mesh(u,'cone','#637653',0,1.2+y,-.04,.19,.18,.19).rotation.z=.15;
+   for(const side of [-1,1]){
+    mesh(u,'sphere',ranged?leather:steel,side*.21,.83+y,0,.12,.12,.13);
+    const arm=mesh(u,'cylinder',ranged?leather:darkSteel,side*.23,.64+y,.05,.055,.29,.055);arm.rotation.z=side*.18;
+    mesh(u,'sphere',skin,side*.25,.5+y,.09,.065,.075,.065);
+    const leg=mesh(u,'cylinder',rider?darkSteel:'#394844',side*.095,.27+y,0,.065,.33,.065);g.userData.legs.push({leg,side,phase:i*.45});
+    mesh(u,'box','#2e302e',side*.095,.085+y,.065,.14,.16,.23);
+   }
+   if(ranged){
+    if(type==='archer')for(let j=0;j<7;j++){const a=(j-3)*.26;const bow=mesh(u,'cylinder','#b99059',.31,.75+y+Math.sin(a)*.43,.18+Math.cos(a)*.2,.025,.14,.025);bow.rotation.x=a;}
+    else {mesh(u,'box','#967348',.3,.7+y,.24,.5,.07,.1);mesh(u,'box','#61503d',.3,.7+y,.18,.06,.07,.48);}
+    mesh(u,'box','#eadfbb',.31,.75+y,.25,.025,.025,.65);mesh(u,'cylinder',leather,-.08,.77+y,-.18,.07,.38,.07);
+    for(let j=0;j<3;j++)mesh(u,'box','#dbc49c',-.13+j*.04,1.04+y,-.18,.02,.3,.02);
+   }else{
+    const spear=type==='spear'||rider;
+    mesh(u,'cylinder',spear?'#93764d':steel,.27,.95+y,.1,spear?.025:.035,spear?1.5:.72,.025);
+    mesh(u,'box','#b8a571',.27,.64+y,.1,.18,.045,.055);
+    if(spear)mesh(u,'cone',steel,.27,1.78+y,.1,.065,.28,.065);
+    const shield=mesh(u,'cylinder',type==='shield'?darkSteel:color,-.27,.65+y,.13,type==='shield'?.27:.19,.09,type==='shield'?.27:.19);shield.rotation.x=Math.PI/2;
+    mesh(u,'sphere',steel,-.27,.65+y,.2,.07,.07,.04);
+    if(type==='shield'){mesh(u,'box',steel,-.27,.65+y,.2,.035,.45,.035);mesh(u,'box',steel,-.27,.65+y,.2,.4,.035,.035);}
+   }
   }
   g.userData.banner=flag(g,0,2.6,.3,color);
  }

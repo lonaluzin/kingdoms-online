@@ -34,4 +34,4 @@ export function routePoint(path,t){
  return {...path.at(-1),angle:0};
 }
 // Render one snapshot interval behind the server; never advance beyond a stale snapshot.
-export function visualTime(time,receivedAt,now){return time-.65+Math.min(.65,Math.max(0,(now-receivedAt)/1000));}
+export function visualTime(time,receivedAt,now,speed=1){return speed===0?time:time-.65*speed+Math.min(.65,Math.max(0,(now-receivedAt)/1000))*speed;}

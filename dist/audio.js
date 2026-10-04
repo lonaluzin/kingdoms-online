@@ -30,7 +30,11 @@ export function createAudio(){
  document.addEventListener('pointerdown',e=>{if(e.target.closest('button'))start();});
  function cue(kind){if(!enabled||!context||context.state!=='running')return;const now=context.currentTime+.01;
   if(kind==='march'){[0,.15,.3].forEach((d,i)=>tone(38+i,now+d,.18,.14,'triangle',fx));tone(57,now+.45,.65,.07,'sine',fx);}
-  else if(kind==='beast'){[26,29,33].forEach((n,i)=>tone(n,now+i*.08,1.8,.12,'sawtooth',fx));}
+  else if(kind==='beast'){
+    const buffer=context.createBuffer(1,context.sampleRate*2,context.sampleRate),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(1-i/data.length);
+    const noise=context.createBufferSource(),filter=context.createBiquadFilter(),env=context.createGain();noise.buffer=buffer;filter.type='lowpass';filter.frequency.setValueAtTime(1100,now);filter.frequency.exponentialRampToValueAtTime(90,now+1.8);env.gain.setValueAtTime(.28,now);env.gain.exponentialRampToValueAtTime(.001,now+2);noise.connect(filter);filter.connect(env);env.connect(fx);noise.start(now);
+    [24,28,31].forEach((n,i)=>tone(n,now+i*.08,2,.11,'sawtooth',fx));
+  }
   else if(kind==='battle'){[0,.13,.35,.48].forEach((d,i)=>tone(45+i*7,now+d,.12,.09,'triangle',fx));}
   else if(kind==='warning'){[62,57,62].forEach((n,i)=>tone(n,now+i*.3,.45,.1,'triangle',fx));}
   else if(kind==='build'){[72,76,79].forEach((n,i)=>tone(n,now+i*.16,.8,.08,'sine',fx));}

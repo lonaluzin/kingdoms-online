@@ -9,6 +9,19 @@ export const BUILDINGS = {
   academy: { name: 'Академия', icon: 'book', text: 'Знания открывают новые возможности.', effect: 'Открывает исследования', cost: { gold: 300, wood: 180, stone: 180 }, income: {} },
   shrine: { name: 'Древнее святилище', icon: 'flame', text: 'Здесь ещё помнят имена древних зверей.', effect: 'Открывает ритуал призыва', cost: { gold: 650, wood: 200, stone: 350 }, income: {} },
 };
+Object.assign(BUILDINGS, {
+ archery: {name:'Стрельбище',icon:'bow',text:'Подготовка стрелков.',effect:'Арбалетчики без казарм',cost:{gold:220,wood:180},income:{}},
+ stable: {name:'Конюшня',icon:'horse',text:'Боевые кони для рыцарей.',effect:'Открывает рыцарей',cost:{gold:350,wood:220,stone:100},income:{}},
+ hunting: {name:'Охотничий двор',icon:'wheat',kinds:['camp'],text:'Разведчики добывают пищу в лесах.',effect:'+120 еды / мин',cost:{gold:140,wood:140},income:{food:120}},
+ spoils: {name:'Склад трофеев',icon:'coins',kinds:['camp'],text:'Продажа добычи с караванов.',effect:'+120 золота / мин',cost:{gold:240,wood:160},income:{gold:120}},
+ mercenaries: {name:'Двор наёмников',icon:'swords',kinds:['camp'],text:'Опытные воины поступают на службу.',effect:'Заменяет казармы уровня II',cost:{gold:380,wood:180,stone:100},income:{}},
+ excavation: {name:'Раскопки',icon:'mountain',kinds:['ruins'],text:'Артефакты и древняя кладка.',effect:'+80 камня, +40 золота / мин',cost:{gold:180,wood:120},income:{stone:80,gold:40}},
+ archive: {name:'Архив древних',icon:'book',kinds:['ruins'],text:'Расшифровка уцелевших знаний.',effect:'Открывает исследования',cost:{gold:280,wood:140,stone:160},income:{}},
+ runeforge: {name:'Рунная кузница',icon:'shield',kinds:['ruins'],text:'Обереги укрепляют боевой дух гарнизона.',effect:'Восстановление духа в 3 раза быстрее',cost:{gold:300,stone:200},income:{}}
+});
+export const availableBuildings=p=>Object.entries(BUILDINGS).filter(([,b])=>!b.kinds||b.kinds.includes(p?.kind));
+export const buildingSlots=(b,q=[])=>new Set([...Object.keys(b).filter(k=>b[k]>0),...q.filter(x=>x.type==='build').map(x=>x.key)]).size;
+export const militaryLevel=(b,u)=>b.mercenaries?2:u.type==='Стрелки'?Math.max(b.barracks||0,b.archery||0):u.type==='Кавалерия'?Math.max(b.barracks||0,(b.stable||0)*2):b.barracks||0;
 export const UNITS = {
   sword: { name: 'Мечники', type: 'Пехота', icon: 'swords', power: 4, cost: { gold: 16, food: 8 }, req: 0, text: 'Универсальная пехота' },
   spear: { name: 'Копейщики', type: 'Пехота', icon: 'spear', power: 4, cost: { gold: 14, wood: 8, food: 6 }, req: 0, text: 'Сильны против кавалерии' },
@@ -35,7 +48,7 @@ export const PLACES = [
   { id: 'ruins', name: 'Забытые руины', kind: 'ruins', owner: 'wild', x: 26, z: -16, defense: 180, ruler: 'Дикие земли', color: '#adb5bb', detail: 'Древний зверь охраняет сокровища' },
 ];
 export function freshGame() {
-  return { version: 1, time: 0, speed: 1, resources: { gold: 1200, wood: 760, stone: 520, food: 980 }, buildings: { farm: 1, lumber: 1, quarry: 1, market: 1, barracks: 0, walls: 0, academy: 0, shrine: 0 }, troops: { sword: 20, spear: 12, archer: 14 }, techs: { harvest: 0, tactics: 0, diplomacy: 0 }, places: structuredClone(PLACES), relations: Object.fromEntries(['willow', 'oak', 'gold', 'red'].map(id => [id, { status: 'peace', trade: false }])), reputation: 50, queue: [], marches: [], events: [], logs: [{ time: 0, text: 'Летопись Велиграда началась. Ваш народ ждёт первых решений.', kind: 'good' }], nextId: 1, victory: null, ritual: null, beast: null, flags: {} };
+  return { version: 1, time: 0, speed: 1, resources: { gold: 1200, wood: 760, stone: 520, food: 980 }, buildings: Object.fromEntries(Object.keys(BUILDINGS).map(k=>[k,['farm','lumber','quarry','market'].includes(k)?1:0])), troops: { sword: 20, spear: 12, archer: 14 }, techs: { harvest: 0, tactics: 0, diplomacy: 0 }, places: structuredClone(PLACES), relations: Object.fromEntries(['willow', 'oak', 'gold', 'red'].map(id => [id, { status: 'peace', trade: false }])), reputation: 50, queue: [], marches: [], events: [], logs: [{ time: 0, text: 'Летопись Велиграда началась. Ваш народ ждёт первых решений.', kind: 'good' }], nextId: 1, victory: null, ritual: null, beast: null, flags: {} };
 }
 export function restoreGame(raw) {
   try {
@@ -63,9 +76,9 @@ export function power(troops, s, target) {
 export function income(s) {
   const r = { gold: 60, wood: 30, stone: 20, food: 90 };
   if(s.map==='forest')r.wood+=25;else if(s.map==='hills')r.stone+=25;else if(s.map==='valley')r.food+=25;
-  for (const [key,b] of Object.entries(BUILDINGS)) for (const [res,v] of Object.entries(b.income)) r[res] += v * s.buildings[key];
+  for (const [key,b] of Object.entries(BUILDINGS)) for (const [res,v] of Object.entries(b.income)) r[res] += v * (s.buildings[key]||0) * ((s.places.find(p=>p.id===(s.home||'home'))?.occupationUntil||0)>s.time?.5:1);
   r.gold += Object.entries(s.relations).filter(([k,r])=>!r.group||r.group===k).map(([,r])=>r).filter(x => x.trade && x.status !== 'war').length * 65;
-  for (const p of s.places) if (p.owner === (s.playerId || 'player') && p.id !== (s.home || 'home')) { for(const [key,b] of Object.entries(BUILDINGS))for(const [res,v] of Object.entries(b.income))r[res]+=v*(p.buildings?.[key]||0); r.gold += 30; r[p.kind === 'village' ? 'food' : 'stone'] += 45; }
+  for (const p of s.places) if (p.owner === (s.playerId || 'player') && p.id !== (s.home || 'home')) { const efficiency=(p.occupationUntil||0)>s.time?.5:1; for(const [key,b] of Object.entries(BUILDINGS))for(const [res,v] of Object.entries(b.income))r[res]+=v*(p.buildings?.[key]||0)*efficiency; r.gold += 30*efficiency; r[p.kind === 'village' ? 'food' : 'stone'] += 45*efficiency; }
   r.food *= 1 + s.techs.harvest * .25;
   if (s.events.some(e => e.type === 'drought' && e.end > s.time)) r.food *= .45;
   r.food -= s.places.filter(p=>p.owner===(s.playerId||'player')).reduce((n,p)=>n+totalTroops(p.garrison||{})*.6,0);
@@ -79,17 +92,24 @@ function log(s,text,kind='info') { s.logs.unshift({ time: s.time, text, kind });
 const fail = message => ({ ok: false, message });
 export function act(s, type, args = {}) {
   const localId=args.settlement||args.source||s.home||'home', local=s.places.find(p=>p.id===localId);
-  const localAction=['build','recruit','research','march','reinforce','summon'].includes(type);
+  const localAction=['build','demolish','recruit','research','march','reinforce','summon'].includes(type);
   if(s.online&&(localAction||args.source!==undefined||args.settlement!==undefined)&&(!local||local.owner!==s.playerId))return fail('Выберите своё поселение');
   const buildings=s.online&&localId!==s.home?(local.buildings??=Object.fromEntries(Object.keys(BUILDINGS).map(k=>[k,0]))):s.buildings;
   const troops=s.online&&localId!==s.home?(local.garrison??={}):s.troops;
   const localQueue=s.queue.filter(q=>(q.settlement||s.home||'home')===localId);
   if (s.victory && type !== 'continue') return fail('Эта летопись завершена. Продолжите игру или начните новую.');
   if (type === 'continue') { s.flags.won = true; s.victory = null; s.speed = 1; return { ok: true, message: 'История продолжается' }; }
+  if(type==='demolish'){
+    if(!Object.hasOwn(BUILDINGS,args.key)||!buildings[args.key])return fail('Здание не построено');
+    if(localQueue.some(q=>q.type==='build'||q.type==='recruit'||q.type==='research'))return fail('Сначала завершите работы в поселении');
+    buildings[args.key]=0; log(s,local.name+': '+BUILDINGS[args.key].name+' разобрано. Слот освобождён.');return {ok:true,message:'Здание разобрано; ресурсы не возвращаются'};
+  }
   if (type === 'build' || type === 'research') {
     const catalog = type === 'build' ? BUILDINGS : TECHS, levels = type === 'build' ? buildings : s.techs, item = catalog[args.key];
     if (!item) return fail('Неизвестное улучшение');
-    if (type === 'research' && !buildings.academy) return fail('Сначала постройте академию');
+    if(type==='build'&&item.kinds&&!item.kinds.includes(local.kind))return fail('Это здание доступно только в лагере или руинах');
+    if(type==='build'&&!buildings[args.key]&&buildingSlots(buildings,localQueue)>=5)return fail('Все пять слотов заняты. Разберите ненужное здание');
+    if (type === 'research' && !buildings.academy&&!buildings.archive) return fail('Сначала постройте академию');
     if (levels[args.key] >= 3) return fail('Достигнут максимальный уровень');
     if ((type==='build'?localQueue:s.queue).some(q => q.type === type)) return fail(type === 'build' ? 'Строители уже заняты' : 'Учёные уже заняты');
     const cost = costAt(item.cost, levels[args.key]);
@@ -101,7 +121,7 @@ export function act(s, type, args = {}) {
   if (type === 'recruit') {
     const u = UNITS[args.key], count = Number(args.count);
     if (!u || !Number.isInteger(count) || count < 1 || count > 100) return fail('Выберите от 1 до 100 воинов');
-    if (buildings.barracks < u.req) return fail(`Нужны казармы уровня ${u.req}`);
+    if (militaryLevel(buildings,u) < u.req) return fail(`Нужны казармы уровня ${u.req}`);
     if (localQueue.filter(q => q.type === 'recruit').length >= 3) return fail('Очередь найма заполнена');
     const cost = costAt(u.cost,0,count);
     if (!canPay(s,cost)) return fail('Недостаточно ресурсов');
@@ -153,7 +173,6 @@ export function act(s, type, args = {}) {
     if(!p)return fail('Неизвестное поселение');
     if(type==='reinforce'&&(p.owner!==(s.playerId||'player')||p.id===localId))return fail('Выберите своё владение вне столицы');
     if(type==='march'&&p.owner===(s.playerId||'player'))return fail('Выберите чужое поселение');
-    if (s.marches.some(m => m.target === p.id && !m.returning)) return fail('Армия уже идёт к этой цели');
     if (type==='march' && s.relations[p.id] && s.relations[p.id].status !== 'war') return fail('Перед походом объявите войну в окне дипломатии');
     const fraction = Number(args.fraction ?? 1);
     if (![.25,.5,.75,1].includes(fraction)) return fail('Неверная доля войска');
