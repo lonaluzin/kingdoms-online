@@ -18,7 +18,7 @@ test('walking, waiting and attack use joint poses; weapons follow the hand',()=>
  let meshes=0;g.traverse(o=>{if(o.isMesh){meshes++;for(const value of o.geometry.attributes.position.array)assert.ok(Number.isFinite(value));}});assert.ok(meshes<190,'Static batching bounds draw calls for six detailed soldiers');
  const f=g.userData.fighters.find(f=>f.type==='sword');
  animateArmy(g,.2,'walk');const leg=f.legs[0].pivot.rotation.x;animateArmy(g,.6,'walk');assert.notEqual(f.legs[0].pivot.rotation.x,leg);
- animateArmy(g,.6,'idle');assert.equal(f.legs[0].pivot.rotation.x,0);assert.equal(f.legs[0].knee.rotation.x,0);
+ for(let i=0;i<40;i++)animateArmy(g,.6,'idle');assert.ok(Math.abs(f.legs[0].pivot.rotation.x)<1e-6);assert.ok(Math.abs(f.legs[0].knee.rotation.x)<1e-6);
  animateArmy(g,.3,'attack');const arm=f.arms[1].rotation.x;animateArmy(g,.5,'attack');assert.notEqual(f.arms[1].rotation.x,arm);
  animateArmy(g,.5,'attack',1);assert.equal(f.group.rotation.x,-.25);
  const cavalry=g.userData.fighters.find(f=>f.type==='knight');assert.equal(cavalry.horseLegs.length,4);

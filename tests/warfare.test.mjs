@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {Room} from '../rooms.mjs';import {income,totalTroops,costAt} from '../dist/game.js';import {formation} from '../dist/formation.js';
-const setup=()=>{const r=new Room('a','Первый',0);r.join('b','Второй');r.start('a');return r;};
+const setup=()=>{const r=new Room('a','Первый',0);r.join('b','Второй');r.seed=1329;r.members.forEach(m=>m.ready=true);r.start('a');return r;};
 const advance=(r,n)=>{for(let i=0;i<Math.ceil(n*10);i++)r.tick(.1);};
 test('captured settlements have independent construction, local hiring, income and march origin',()=>{
  const r=setup(),s=r.actor('a'),p=r.places.find(p=>p.id==='bandits');p.owner=s.playerId;p.garrison={sword:10};r.refresh();const before=income(s).food;

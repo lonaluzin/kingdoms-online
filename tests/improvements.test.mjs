@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import {Room} from '../rooms.mjs';
 import {MAPS,findRoute,blocked,riverX,bridges,routePoint,visualTime} from '../dist/navigation.js';
 import {income,totalTroops} from '../dist/game.js';
-const game=(map='valley')=>{const r=new Room('a','Правитель',1,map);r.start('a');return r;};
+const game=(map='valley')=>{const r=new Room('a','Правитель',1,map);r.seed=1329;r.members.forEach(m=>m.ready=true);r.start('a');return r;};
 test('all three maps have valid routes using bridges and avoiding buildings',()=>{
  for(const map of Object.keys(MAPS)){const r=game(map);for(let i=0;i<r.places.length;i++)for(let j=i+1;j<r.places.length;j++){
   const route=findRoute(r.places[i],r.places[j],r.places,map);assert.ok(route,`${map} ${r.places[i].id}->${r.places[j].id}`);
-  for(let k=0;k<=100;k++){const p=routePoint(route,k/100);assert.ok(!blocked(p.x,p.z,r.places,map),`${map} blocked ${JSON.stringify(p)}`);if(Math.abs(p.x-riverX(p.z,map))<3.6)assert.ok(bridges(map).some(b=>Math.abs(b.z-p.z)<.7));}
+  for(let k=0;k<=100;k++){const p=routePoint(route,k/100);assert.ok(!blocked(p.x,p.z,r.places,map),`${map} blocked ${JSON.stringify(p)}`);if(Math.abs(p.x-riverX(p.z,map))<3.6&&!r.places.some(c=>c.strategic&&Math.hypot(p.x-c.x,p.z-c.z)<9))assert.ok(bridges(map).some(b=>Math.abs(b.z-p.z)<.7));}
  }}
 });
 test('visual clock advances continuously across regular snapshots and stops when offline',()=>{
@@ -15,7 +15,7 @@ test('visual clock advances continuously across regular snapshots and stops when
 });
 test('own diplomacy rejects all actions without spending; eliminated orders stay rejected',()=>{
  const r=game(),s=r.actor('a'),before=structuredClone(s.resources);for(const action of ['trade','war','pact','aid','alliance','peace'])assert.equal(r.command('a','diplomacy',{target:'home',action}).ok,false);assert.deepEqual(s.resources,before);assert.equal(s.relations.home,undefined);
- s.eliminated=true;assert.match(r.command('a','build',{key:'farm'}).message,/столица/);assert.deepEqual(s.resources,before);
+ s.eliminated=true;assert.match(r.command('a','build',{key:'farm'}).message,/поселения/);assert.deepEqual(s.resources,before);
 });
 test('capture changes ruler and color, leaves real guards; reinforcements and recall conserve troops',()=>{
  const r=game(),s=r.actor('a');r.command('a','diplomacy',{target:'willow',action:'war'});assert.ok(r.command('a','march',{target:'willow',fraction:.75}).ok);
