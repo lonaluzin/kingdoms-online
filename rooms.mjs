@@ -45,9 +45,8 @@ export class Room {
     this.places=structuredClone(PLACES);this.places.push({id:'silver',name:'Серебряный утёс',kind:'city',owner:'silver',x:-27,z:-23,defense:320,ruler:'Северный князь',color:colors[3],detail:'Крепость на северном тракте'});
     this.places=layoutPlaces(this.places,this.map);
     const random=(()=>{let n=this.seed;return ()=>{n=(n*1664525+1013904223)>>>0;return n/4294967296;};})();const starts=[...homes];for(let i=starts.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[starts[i],starts[j]]=[starts[j],starts[i]];}this.members.forEach((m,i)=>m.home=starts[i]);
-    // Paired neutral resources keep both river banks equally useful.
-    this.places.push({id:'east-camp',name:'Восточный стан',kind:'camp',owner:'wild-east',x:14,z:26,defense:85,color:'#c59268',ruler:'Вольные дружины'}, {id:'west-ruins',name:'Западные руины',kind:'ruins',owner:'wild-west',x:-30,z:-10,defense:180,color:'#adb5bb',ruler:'Древний хранитель'}, {id:'center',name:'Сердце долины',kind:'village',owner:'center',x:0,z:0,defense:140,color:'#d8bb74',ruler:'Хранитель перевала',strategic:true,detail:'Редкая руда: +80 золота/мин сверх обычного дохода'});
-    for(const side of [-1,1]){this.places.push({id:'north-camp-'+side,name:side<0?'Северный стан':'Стан у перевала',kind:'camp',owner:'wild-north-'+side,x:side*14,z:-26,defense:85,color:'#c59268',ruler:'Вольные дружины'}, {id:'south-ruins-'+side,name:side<0?'Руины старой башни':'Руины у рощи',kind:'ruins',owner:'wild-south-'+side,x:side*30,z:10,defense:180,color:'#adb5bb',ruler:'Древний хранитель'}, {id:'north-village-'+side,name:side<0?'Тихая роща':'Ясные поля',kind:'village',owner:'village-north-'+side,x:side*14,z:-10,defense:100,color:'#d4bb81',ruler:'Свободные жители'});}
+    // Two shared villages and three objectives keep the compact map readable.
+    this.places.push({id:'center',name:'Сердце долины',kind:'village',owner:'center',x:0,z:0,defense:140,color:'#d8bb74',ruler:'Хранитель перевала',strategic:true,detail:'Редкая руда: +80 золота/мин сверх обычного дохода'});
     for(const p of this.places){if(homes.includes(p.id))p.defense=220;if(p.kind==='village'&&!p.strategic)p.defense=100;}
     const shift=Math.floor(random()*3)-1;for(const p of this.places)if(!p.strategic){p.x+=Math.sign(p.x)*shift;p.z+=Math.sign(p.z)*shift;}
     this.actors=this.members.map((m,i)=>{
