@@ -17,9 +17,9 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.22;
   host.appendChild(renderer.domElement);
   const camera = new THREE.PerspectiveCamera(39,host.clientWidth/host.clientHeight,.1,300);
-  camera.position.set(45,63,72);
+  camera.position.set(32,48,54);
   const controls = new OrbitControls(camera,renderer.domElement);
-  controls.target.set(0,0,1); controls.enableDamping=true; controls.dampingFactor=.08; controls.minDistance=28; controls.maxDistance=123; controls.maxPolarAngle=Math.PI*.35; controls.minPolarAngle=.3;
+  controls.target.set(0,0,1); controls.enableDamping=true; controls.dampingFactor=.08; controls.minDistance=28; controls.maxDistance=92; controls.maxPolarAngle=Math.PI*.35; controls.minPolarAngle=.3;
   controls.mouseButtons={LEFT:THREE.MOUSE.PAN,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.ROTATE};
   controls.touches={ONE:THREE.TOUCH.PAN,TWO:THREE.TOUCH.DOLLY_ROTATE}; controls.screenSpacePanning=false;
   const hemi = new THREE.HemisphereLight('#d6e8f0','#4c6141',1.8); scene.add(hemi);
@@ -34,7 +34,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     const river=Math.abs(x-riverX(z));
     let h = .75+Math.sin(x*.32)*Math.cos(z*.22)*.45+Math.sin(x*.8+z*.4)*.13;
     if(river<2.9) h=-.8+Math.pow(river/2.9,4)*1.6;
-    const edge=Math.max(Math.abs(x)/42,Math.abs(z)/36);
+    const edge=Math.max(Math.abs(x)/34,Math.abs(z)/28);
     if(edge>.8) h+=Math.min(2,(edge-.8)*4);
     for(const p of getState().places){const d=Math.hypot(x-p.x,z-p.z);if(d<9)h=THREE.MathUtils.lerp(.83,h,THREE.MathUtils.smoothstep(d,7,9));}
     return h;
@@ -62,14 +62,14 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const places=getState().places;
   // Clear walking corridors through woods, without laying paths through the river.
   const roads=[];for(let i=0;i<places.length;i++)for(let j=i+1;j<places.length;j++){const path=findRoute(places[i],places[j],places,map);if(path)roads.push(path);}
-  for(const z of [11,-11]){const x=riverX(z);mesh(scene,'box','#998564',x,.67,z,10,.4,1.6);for(const side of [-1,1]){mesh(scene,'box','#6c654e',x,1.23,z+side*.77,10,.25,.14);for(let j=-4.5;j<=4.5;j+=1.5)mesh(scene,'box','#6c654e',x+j,.78,z+side*.77,.15,1.2,.15);}for(let j=-4.5;j<4.8;j+=.35)mesh(scene,'box','#b1a383',x+j,.9,z,.055,.055,1.5);}
-  const trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.11,.18,1.6,5),mat('#63583b'),850);
-  const crowns=new THREE.InstancedMesh(new THREE.ConeGeometry(1,2.7,7),mat('#35604a'),850);
-  const tips=new THREE.InstancedMesh(new THREE.ConeGeometry(.7,2.1,7),mat('#567b50'),850);
-  const canopy=new THREE.InstancedMesh(geometries.sphere,mat('#63824b'),850),upperCanopy=new THREE.InstancedMesh(geometries.sphere,mat('#789352'),850);
+  for(const z of [8,-8]){const x=riverX(z);mesh(scene,'box','#998564',x,.67,z,10,.4,1.6);for(const side of [-1,1]){mesh(scene,'box','#6c654e',x,1.23,z+side*.77,10,.25,.14);for(let j=-4.5;j<=4.5;j+=1.5)mesh(scene,'box','#6c654e',x+j,.78,z+side*.77,.15,1.2,.15);}for(let j=-4.5;j<4.8;j+=.35)mesh(scene,'box','#b1a383',x+j,.9,z,.055,.055,1.5);}
+  const trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.11,.18,1.6,5),mat('#63583b'),320);
+  const crowns=new THREE.InstancedMesh(new THREE.ConeGeometry(1,2.7,7),mat('#35604a'),320);
+  const tips=new THREE.InstancedMesh(new THREE.ConeGeometry(.7,2.1,7),mat('#567b50'),320);
+  const canopy=new THREE.InstancedMesh(geometries.sphere,mat('#63824b'),320),upperCanopy=new THREE.InstancedMesh(geometries.sphere,mat('#789352'),320);
   const dummy=new THREE.Object3D();let trees=0;
-  for(let i=0;i<2000&&trees<850;i++){
-    const x=random()*81-40.5,z=random()*57-28.5;
+  for(let i=0;i<1100&&trees<320;i++){
+    const x=random()*61-30.5,z=random()*43-21.5;
     if(Math.abs(x-riverX(z))<4.3||places.some(p=>Math.hypot(x-p.x,z-p.z)<6)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<.9)))continue;
     const n=Math.sin(x*.13+1)*Math.cos(z*.15);if(random()>(n+.9)*.58*MAPS[map].forest)continue;
     const h=height(x,z),scale=.5+random()*.7;
@@ -81,12 +81,14 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     dummy.position.set(x+.3*scale,h+2.45*scale,z-.2*scale);dummy.scale.multiplyScalar(.75);dummy.updateMatrix();upperCanopy.setMatrixAt(trees,dummy.matrix);trees++;
   }
   for(const t of [trunk,crowns,tips,canopy,upperCanopy]){t.count=trees;t.castShadow=true;t.receiveShadow=true;scene.add(t);}
-  for(const side of [-1,1])for(let i=0;i<16;i++){const x=-42+i*5.6+(random()-.5)*2,z=side*(35+random()*5);if(Math.abs(x-riverX(z))<6||places.some(p=>Math.hypot(x-p.x,z-p.z)<10))continue;const scale=2.7+random()*(map==='hills'?6:3.5),base=height(x,z),rotation=random()*6;const m=mesh(scene,new THREE.ConeGeometry(1,1,6),'#879189',x,base+scale*.75,z,scale*.9,scale*1.5,scale*.75);m.rotation.y=rotation;if(scale>4){const cap=mesh(scene,new THREE.ConeGeometry(1,1,6),'#d4d9c8',x,base+scale*1.27,z,scale*.276,scale*.46,scale*.23);cap.rotation.y=rotation;}}
+  // Snow is vertex colour on the mountain itself: no overlapping cone surfaces.
+  const mountainMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true});
+  for(const side of [-1,1])for(let i=0;i<7;i++){const x=-29+i*9+(random()-.5),z=side*(29+random()*3);if(Math.abs(x-riverX(z))<6||places.some(p=>Math.hypot(x-p.x,z-p.z)<10))continue;const scale=2.7+random()*(map==='hills'?6:3.5),base=height(x,z),rotation=random()*6,geo=new THREE.ConeGeometry(1,1,6,3).toNonIndexed(),col=[];for(let v=0;v<geo.attributes.position.count;v++){const snow=scale>4?THREE.MathUtils.smoothstep(geo.attributes.position.getY(v),.14,.31):0,c=new THREE.Color('#879189').lerp(new THREE.Color('#d4d9c8'),snow);col.push(c.r,c.g,c.b);}geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));const m=new THREE.Mesh(geo,mountainMaterial);m.position.set(x,base+scale*.75,z);m.scale.set(scale*.9,scale*1.5,scale*.75);m.rotation.y=rotation;m.castShadow=true;m.receiveShadow=false;scene.add(m);}
 
-  for(let i=0;i<60;i++){const x=random()*80-40,z=random()*68-34;if(places.some(p=>Math.hypot(x-p.x,z-p.z)<5)||Math.abs(x-riverX(z))<3.4)continue;const sc=.3+random()*.6;mesh(scene,'sphere','#9a9c85',x,height(x,z)+sc*.3,z,sc,sc*.8,sc);}
+  for(let i=0;i<24;i++){const x=random()*60-30,z=random()*48-24;if(places.some(p=>Math.hypot(x-p.x,z-p.z)<5)||Math.abs(x-riverX(z))<3.4)continue;const sc=.3+random()*.6;mesh(scene,'sphere','#9a9c85',x,height(x,z)+sc*.3,z,sc,sc*.8,sc);}
   // Vegetation shares geometry and uses two draw calls, rather than hundreds of small objects.
-  const shrubs=new THREE.InstancedMesh(geometries.sphere,mat('#69834f'),240),grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.12,.55,3),mat('#87975b'),600);let bushes=0,tufts=0;
-  for(let i=0;i<1600&&tufts<600;i++){const x=random()*80-40,z=random()*68-34;if(Math.abs(x-riverX(z))<3.8||places.some(p=>Math.hypot(x-p.x,z-p.z)<6)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<.8)))continue;const h=height(x,z);dummy.position.set(x,h+.2,z);dummy.scale.set(.6+random()*.4,.3+random()*.25,.55+random()*.4);dummy.rotation.y=random()*6;dummy.updateMatrix();if(bushes<240&&i%3===0)shrubs.setMatrixAt(bushes++,dummy.matrix);dummy.scale.setScalar(.6+random());dummy.position.y=h+.12;dummy.updateMatrix();grass.setMatrixAt(tufts++,dummy.matrix);}
+  const shrubs=new THREE.InstancedMesh(geometries.sphere,mat('#69834f'),80),grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.12,.55,3),mat('#87975b'),180);let bushes=0,tufts=0;
+  for(let i=0;i<600&&tufts<180;i++){const x=random()*60-30,z=random()*48-24;if(Math.abs(x-riverX(z))<3.8||places.some(p=>Math.hypot(x-p.x,z-p.z)<6)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<.8)))continue;const h=height(x,z);dummy.position.set(x,h+.2,z);dummy.scale.set(.6+random()*.4,.3+random()*.25,.55+random()*.4);dummy.rotation.y=random()*6;dummy.updateMatrix();if(bushes<80&&i%3===0)shrubs.setMatrixAt(bushes++,dummy.matrix);dummy.scale.setScalar(.6+random());dummy.position.y=h+.12;dummy.updateMatrix();grass.setMatrixAt(tufts++,dummy.matrix);}
   shrubs.count=bushes;grass.count=tufts;shrubs.castShadow=true;scene.add(shrubs,grass);
   const flags=[],mills=[],settlements=new Map(),borderGroup=new THREE.Group();scene.add(borderGroup);
   function flag(parent,x,y,z,color){mesh(parent,'cylinder','#e0d0a6',x,y/2,z,.045,y,.045);const cloth=new THREE.Mesh(new THREE.PlaneGeometry(.85,.5,6,1),new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.8}));cloth.position.set(x+.43,y-.3,z);parent.add(cloth);flags.push(cloth);return cloth;}

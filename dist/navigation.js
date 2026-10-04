@@ -3,15 +3,15 @@ export const MAPS={
  forest:{name:'Лесное пограничье',seed:18451,river:2,forest:1.3},
  hills:{name:'Каменные холмы',seed:43271,river:3,forest:.65},
 };
-export const riverX=(z,map='valley')=>Math.sin(z*.12)*((MAPS[map]?.river||1)+2);
-export const bridges=map=>[-11,11].map(z=>({x:riverX(z,map),z}));
+export const riverX=(z,map='valley')=>Math.sin(z*.12)*((MAPS[map]?.river||1)+2)*.35;
+export const bridges=map=>[-8,8].map(z=>({x:riverX(z,map),z}));
 export function layoutPlaces(places,map='valley'){
- const positions={home:[-30,26],gold:[30,26],red:[30,-26],silver:[-30,-26],willow:[-14,10],oak:[14,10],bandits:[-14,26],ruins:[30,-10]};
+ const positions={home:[-22,18],gold:[22,18],red:[22,-18],silver:[-22,-18],willow:[0,18],oak:[0,-18],bandits:[-16,0],ruins:[16,0]};
  return places.map(p=>({...p,...(positions[p.id]?{x:positions[p.id][0],z:positions[p.id][1]}:{})}));
 }
 export function blocked(x,z,places,map='valley'){
- if(Math.abs(x)>40||Math.abs(z)>34)return true;
- if(!places.some(p=>p.strategic&&Math.hypot(x-p.x,z-p.z)<9)&&Math.abs(x-riverX(z,map))<3.6&&!bridges(map).some(b=>Math.abs(z-b.z)<.7&&Math.abs(x-b.x)<5))return true;
+ if(Math.abs(x)>32||Math.abs(z)>26)return true;
+ if(!places.some(p=>Math.hypot(x-p.x,z-p.z)<9)&&Math.abs(x-riverX(z,map))<3.6&&!bridges(map).some(b=>Math.abs(z-b.z)<.7&&Math.abs(x-b.x)<5))return true;
  return places.some(p=>Math.hypot(x-p.x,z-p.z)<(p.strategic?5:6.7));
 }
 const gate=(p,other)=>p.strategic?{x:Math.sign(other.x)*5,z:Math.sign(other.z)*5}:{x:Math.round(p.x),z:Math.round(p.z+(p.z>0?-7.5:7.5))};
@@ -35,3 +35,4 @@ export function routePoint(path,t){
 }
 // Render one snapshot interval behind the server; never advance beyond a stale snapshot.
 export function visualTime(time,receivedAt,now,speed=1){return speed===0?time:time-.65*speed+Math.min(.65,Math.max(0,(now-receivedAt)/1000))*speed;}
+
