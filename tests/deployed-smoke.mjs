@@ -4,7 +4,7 @@ assert.ok(base?.startsWith('https://'),'Pass deployed HTTPS URL');
 const client=()=>{let cookie='';return async(path,data)=>{const res=await fetch(base+'/api/'+path,{method:data?'POST':'GET',headers:{cookie,...(data?{'Content-Type':'application/json'}:{})},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(15000)});if(res.headers.get('set-cookie'))cookie=res.headers.get('set-cookie').split(';')[0];const json=await res.json();return {status:res.status,...json};};};
 const a=client(),b=client();
 assert.equal((await fetch(base+'/health')).status,200);
-assert.equal((await (await fetch(base+'/health')).json()).version,'0.7.0');
+assert.equal((await (await fetch(base+'/health')).json()).version,'0.7.1');
 for(const file of ['index.html','app.js','online.js','world.js','audio.js','navigation.js','models.js','formation.js','online.css','vendor/three.module.min.js','vendor/three.core.min.js','vendor/OrbitControls.js'])assert.equal((await fetch(base+'/'+file)).status,200,file);
 assert.equal((await fetch(base+'/server.mjs')).status,404);
 try{

@@ -7,7 +7,7 @@ const game=(map='valley')=>{const r=new Room('a','Правитель',1,map);r.s
 test('all three maps have valid routes using bridges and avoiding buildings',()=>{
  for(const map of Object.keys(MAPS)){const r=game(map);for(let i=0;i<r.places.length;i++)for(let j=i+1;j<r.places.length;j++){
   const route=findRoute(r.places[i],r.places[j],r.places,map);assert.ok(route,`${map} ${r.places[i].id}->${r.places[j].id}`);
-  for(let k=0;k<=100;k++){const p=routePoint(route,k/100);assert.ok(!blocked(p.x,p.z,r.places,map),`${map} blocked ${JSON.stringify(p)}`);if(Math.abs(p.x-riverX(p.z,map))<3.6&&!r.places.some(c=>c.strategic&&Math.hypot(p.x-c.x,p.z-c.z)<9))assert.ok(bridges(map).some(b=>Math.abs(b.z-p.z)<.7));}
+  for(let k=0;k<=100;k++){const p=routePoint(route,k/100);assert.ok(!blocked(p.x,p.z,r.places,map),`${map} blocked ${JSON.stringify(p)}`);if(Math.abs(p.x-riverX(p.z,map))<3.6&&!r.places.some(c=>Math.hypot(p.x-c.x,p.z-c.z)<9))assert.ok(bridges(map).some(b=>Math.abs(b.z-p.z)<.7));}
  }}
 });
 test('visual clock advances continuously across regular snapshots and stops when offline',()=>{

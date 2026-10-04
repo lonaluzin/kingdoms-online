@@ -3,7 +3,7 @@ import {Room} from '../rooms.mjs';import {income,BUILDINGS,buildingSlots,militar
 const setup=()=>{const r=new Room('a','Первый',0);r.join('b','Второй');r.seed=1329;r.members.forEach(m=>m.ready=true);r.start('a');return r;};
 const advance=(r,n)=>{for(let i=0;i<n*10;i++)r.tick(.1);};
 test('capital moves to surviving settlement; only the final loss defeats, world and winner continue',()=>{
- const r=setup(),a=r.actor('a'),b=r.actor('b'),outpost=r.places.find(p=>p.id==='willow');outpost.owner=b.playerId;outpost.buildings.farm=2;outpost.garrison={spear:10};a.troops={knight:500};
+ const r=setup(),a=r.actor('a'),b=r.actor('b'),outpost=r.places.find(p=>p.id==='willow');outpost.owner=b.playerId;outpost.buildings.farm=2;outpost.garrison={spear:10};outpost.guardStance='passive';a.troops={knight:500};
  r.command('a','diplomacy',{target:b.home,action:'war'});r.command('a','march',{target:b.home,fraction:.75});advance(r,a.marches[0].duration+13);
  assert.equal(b.eliminated,false);assert.equal(b.home,outpost.id);assert.equal(outpost.owner,b.playerId);assert.equal(b.buildings.farm,2);assert.equal(b.troops.spear,10);assert.equal(a.relations[b.home].status,'war');assert.equal(r.winner,null);assert.ok(b.capitalMoved);
  assert.ok(r.command('a','march',{target:b.home,fraction:1}).ok);const final=a.marches.find(m=>!m.returning);advance(r,final.duration+13);assert.ok(b.eliminated);assert.equal(r.winner.id,a.playerId);assert.equal(r.snapshot('b').state.places.filter(p=>p.owner==='player').length,0);const time=r.time;advance(r,10);assert.ok(r.time>time+9);assert.ok(r.command('a','build',{key:'farm'}).ok);assert.equal(r.command('b','speed',{speed:5}).ok,false);
