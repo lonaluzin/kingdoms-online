@@ -166,7 +166,8 @@ export function act(s, type, args = {}) {
     const cost = args.side === 'buy' ? {gold:price} : {[args.resource]:100};
     if (!canPay(s,cost)) return fail('Недостаточно ресурсов для сделки');
     pay(s,cost); s.resources[args.side === 'buy' ? args.resource : 'gold'] += args.side === 'buy' ? 100 : Math.floor(price * .65);
-    return {ok:true,message:args.side === 'buy' ? `Куплено: ${RESOURCES[args.resource]} +100` : `Продано: ${RESOURCES[args.resource]} −100`};
+    const noun={wood:'дерева',stone:'камня',food:'провизии'}[args.resource];
+    return {ok:true,message:args.side === 'buy' ? `Куплено 100 ${noun} · −${price} золота` : `Продано 100 ${noun} · +${Math.floor(price*.65)} золота`};
   }
   if (type === 'march' || type === 'reinforce') {
     const p = s.places.find(p => p.id === args.target);
