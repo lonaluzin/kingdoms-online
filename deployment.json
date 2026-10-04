@@ -4,8 +4,27 @@
   "dashboard": "https://dashboard.render.com/web/srv-db06qnc9v7es73a5js5g",
   "provider": "Render",
   "plan": "free",
-  "deployedCommit": "0311f342617e506662079278610fa406d025619e",
-  "verifiedOn": "2026-10-03",
-  "checks": ["3D browser game", "two independent HTTP clients", "bots", "private economies", "accepted diplomacy", "static assets"],
-  "limitations": ["Sleeps after inactivity", "Rooms are lost on restart", "Public repository deployment is manual"]
+  "version": "0.5.0",
+  "deployedCommit": "cf6f3254668418bc471f35c921c7961b5b04171b",
+  "verifiedOn": "2026-10-04",
+  "checks": [
+    "27 local Node tests passed",
+    "published client assets match tested local source",
+    "two independent deployed HTTP clients share battle and capture",
+    "private economies, bots and diplomacy",
+    "local construction and recruitment in captured camp",
+    "foreign settlement commands rejected",
+    "unanimous online speed vote",
+    "local browser spectator continues observing bot simulation after defeat",
+    "local browser camp buildings and occupation timer",
+    "local browser volumetric soldiers and beast strike effects"
+  ],
+  "limitations": [
+    "Free hosting can sleep after inactivity",
+    "Rooms live in RAM and are lost on server restart",
+    "Room inactivity cleanup is 24 hours; this does not guarantee hosting uptime",
+    "Public repository deployment is manual"
+  ],
+  "backup": "../backups/kingdoms-v0.4-20261004-094700.zip",
+  "backupSha256": "64AA11992658341B939E36B6C6DE7029E651EA570C7A9372C96DC3E7B45C6817"
 }
