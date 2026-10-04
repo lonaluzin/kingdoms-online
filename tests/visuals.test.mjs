@@ -4,11 +4,13 @@ import {registerHooks} from 'node:module';
 const hooks=registerHooks({resolve(specifier,context,next){return next(specifier==='three'?new URL('../dist/vendor/three.module.min.js',import.meta.url).href:specifier,context);}});
 const THREE=await import('../dist/vendor/three.module.min.js');
 const {createArmyModel,animateArmy}=await import('../dist/models.js');
+const {labelTransform}=await import('../dist/world.js');
 hooks.deregister();
 const geo={box:new THREE.BoxGeometry(),cone:new THREE.ConeGeometry(1,1,7),sphere:new THREE.IcosahedronGeometry(1,1),cylinder:new THREE.CylinderGeometry(1,1,1,10)};
 const materials=new Map();
 const mesh=(parent,shape,color,x,y,z,sx=1,sy=1,sz=1)=>{if(!materials.has(color))materials.set(color,new THREE.MeshBasicMaterial({color}));const m=new THREE.Mesh(geo[shape],materials.get(color));m.position.set(x,y,z);m.scale.set(sx,sy,sz);parent.add(m);return m;};
 const flag=()=>null;
+test('city and guard labels need no march context; beast health stays below the header',()=>{assert.equal(labelTransform({x:0,y:0},1280,720),'translate(-50%,-100%) translate(640px,360px)');assert.equal(labelTransform({x:0,y:1},1280,720,165),'translate(-50%,-100%) translate(640px,165px)');});
 test('walking, waiting and attack use joint poses; weapons follow the hand',()=>{
  const g=createArmyModel(mesh,flag,false,'#448877',{sword:5,spear:5,archer:5,crossbow:5,knight:5,shield:5});
  assert.equal(g.userData.fighters.length,6);
