@@ -1,6 +1,15 @@
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function connectOnline({receive,toast}){
-  let tradeQueue=Promise.resolve(),tradePending=0;let confirming=false;let room=null,connected=false,busy=false,playing=false,menuKey='',winnerShown=false,endingShown=false,requestId=0,appliedId=0,mutating=false;
+export function createTradeGate(run,changed=()=>{}){
+  let pending=false;
+  return async args=>{
+    if(pending)return {ok:false,ignored:true};
+    pending=true;changed(true,args);
+    try{return await run(args);}finally{pending=false;changed(false,args);}
+  };
+}
+export function connectOnline({receive,toast,tradeState}){
+  const tradeCommand=createTradeGate(args=>commandNow('trade',args),tradeState);
+  let confirming=false;let room=null,connected=false,busy=false,playing=false,menuKey='',winnerShown=false,endingShown=false,requestId=0,appliedId=0,mutating=false;
   const menu=document.createElement('section');menu.id='online-menu';menu.setAttribute('aria-label','Главное меню');document.body.appendChild(menu);
   const status=document.createElement('div');status.id='network';status.innerHTML='<span>Подключение…</span><button id="room-button">Комната</button>';document.body.appendChild(status);
   const $=s=>document.querySelector(s);
@@ -37,7 +46,7 @@ export function connectOnline({receive,toast}){
   }
   async function api(path,data={}){const id=++requestId;const res=await fetch('/api/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:AbortSignal.timeout(15000)});const r=await res.json();if(!res.ok||r.ok===false)throw new Error(r.message||'Ошибка сервера');if('room'in r)apply(r.room,id);return r;}
   async function leave(){playing=false;await api('leave');location.href=location.pathname;}
-  async function command(type,args={}){if(type==='trade'){if(tradePending>=10)return {ok:false,message:'Очередь сделок заполнена'};tradePending++;const run=tradeQueue.then(async()=>{while(busy)await new Promise(r=>setTimeout(r,50));const result=await commandNow(type,args);await new Promise(r=>setTimeout(r,170));return result;});tradeQueue=run.catch(()=>{});return run.finally(()=>tradePending--);}return commandNow(type,args);}
+  async function command(type,args={}){return type==='trade'?tradeCommand(args):commandNow(type,args);}
   async function commandNow(type,args={}){if(room?.state?.eliminated)return {ok:false,message:'Столица потеряна: приказы недоступны. Начните новую партию.'};if(busy)return {ok:false,message:'Предыдущий приказ ещё выполняется'};if(!connected||!playing)return {ok:false,message:'Связь с сервером потеряна. Переподключаемся…'};busy=true;mutating=true;try{return await api('command',{id:crypto.randomUUID(),type,args});}catch(e){return {ok:false,message:e.message};}finally{busy=false;mutating=false;}}
   async function poll(){const id=++requestId;try{const res=await fetch('/api/state',{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!res.ok)throw new Error('Network');const next=(await res.json()).room;if(!mutating)apply(next,id);}catch(e){if(id>=appliedId){connected=false;updateStatus();}}setTimeout(poll,500);}
   document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b||b.disabled)return;
