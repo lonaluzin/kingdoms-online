@@ -47,3 +47,7 @@ button,.trade-row{user-select:none;-webkit-user-select:none;touch-action:manipul
 #drawer{top:108px;bottom:auto;margin:0 auto;max-height:calc(100svh - 120px)}
 #drawer::backdrop{top:96px}
 @media(max-width:600px){#drawer{top:115px;max-height:calc(100svh - 127px)}#drawer::backdrop{top:103px}}
+
+/* Logistics uses the same palette as council controls. */
+.drawer-shell input[type=number],.unit-logistics input{background:#213f35;color:#f3e4bb;border:1px solid #637365;border-radius:8px;min-height:38px;box-shadow:none;}
+.drawer-shell input[type=number]:focus{outline:2px solid #d5b875;outline-offset:2px;}

@@ -1,7 +1,23 @@
 import * as THREE from 'three';
 import {formation} from './formation.js';
+import {cloneAsset,animateRig,hasAsset} from './assets.js';
 export function createArmyModel(mesh,flag,beast,color,troops){
  const g=new THREE.Group();g.userData.legs=[];g.userData.fighters=[];g.userData.shots=[];
+ const probe=beast?cloneAsset('beast',color):hasAsset('sword');
+ if(probe){
+  g.userData.rigged=true;
+  if(beast){g.add(probe);g.userData.rig=probe;return g;}
+  const aliases={militia:'sword',scout:'knight',veteran:'sword',pike:'spear',ranger:'archer',guard:'shield',halberd:'spear',marksman:'crossbow',paladin:'knight'};
+  const figures=formation(troops,48).sort((a,b)=>Number((aliases[b.type]||b.type)==='knight')-Number((aliases[a.type]||a.type)==='knight'));
+  const columns=Math.max(1,Math.min(4,Math.ceil(Math.sqrt(figures.length))));g.userData.count=figures.length;
+  for(let i=0;i<figures.length;i++){
+   const sourceType=figures[i].type,type=aliases[sourceType]||sourceType,u=cloneAsset(i===0&&!['catapult','ram','tower'].includes(type)?type+'_banner':type,color);
+   if(!u)continue;
+   u.scale.setScalar(.68);u.position.set((i%columns-(columns-1)/2)*1.12,0,-Math.floor(i/columns)*1.4);g.add(u);
+   const f={group:u,type,sourceType,phase:i*.31,baseZ:u.position.z,arms:[],legs:[],horseLegs:[],rigged:true};u.traverse(o=>{if(o.isBone&&['armL','armR'].includes(o.name))f.arms.push(o);});g.userData.fighters.push(f);
+  }
+  return g;
+ }
  if(beast){
   const dark='#292b38',rock='#444554',armor='#626170',bone='#ded0a4';
   mesh(g,'sphere',dark,0,2.6,-.3,2.5,2.3,3.5);mesh(g,'sphere',rock,0,3.5,1.4,2.35,2.4,2.3);mesh(g,'sphere',dark,0,2.6,3,1.7,1.3,1.4);
@@ -93,7 +109,7 @@ export function createArmyModel(mesh,flag,beast,color,troops){
 // Merge same-material pieces within each bone; the joints stay independently animated.
 export function batchStaticParts(root){
  const parents=[];root.traverse(o=>{if(o.isGroup)parents.push(o);});
- for(const parent of parents){const materials=new Map();for(const o of parent.children){if(!o.isMesh||o.userData.fire||o.userData.animate||o.geometry.type==='PlaneGeometry'||o===root.userData.aura||o===root.userData.banner)continue;const list=materials.get(o.material)||[];list.push(o);materials.set(o.material,list);}
+ for(const parent of parents){const materials=new Map();for(const o of parent.children){if(!o.isMesh||o.isSkinnedMesh||o.userData.sharedAsset||o.userData.fire||o.userData.animate||o.geometry.type==='PlaneGeometry'||o===root.userData.aura||o===root.userData.banner)continue;const list=materials.get(o.material)||[];list.push(o);materials.set(o.material,list);}
   for(const [material,parts]of materials){if(parts.length<2)continue;const arrays={position:[],normal:[],uv:[]};for(const o of parts){o.updateMatrix();const source=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();source.applyMatrix4(o.matrix);for(const key of Object.keys(arrays))arrays[key].push(source.attributes[key].array);source.dispose();}
    const geometry=new THREE.BufferGeometry();for(const [key,segments]of Object.entries(arrays)){const values=new Float32Array(segments.reduce((n,a)=>n+a.length,0));let at=0;for(const segment of segments){values.set(segment,at);at+=segment.length;}geometry.setAttribute(key,new THREE.BufferAttribute(values,key==='uv'?2:3));}
    const merged=new THREE.Mesh(geometry,material);merged.castShadow=true;merged.receiveShadow=true;parent.add(merged);for(const o of parts)parent.remove(o);
@@ -102,6 +118,11 @@ export function batchStaticParts(root){
 }
 
 export function animateArmy(g,time,mode='idle',hit=0,velocity,dt=1/60){
+ if(g.userData.rigged){
+  if(g.userData.rig)animateRig(g.userData.rig,mode,dt,Math.max(.2,(velocity||.8)/1.4));
+  for(const f of g.userData.fighters)animateRig(f.group,hit>.7?'hit':mode,dt,Math.max(.12,(f.realSpeed??velocity??.8)/.85));
+  return;
+ }
  for(const f of g.userData.fighters){
   const moving=mode==='walk'||mode==='run',fighting=mode==='attack',phase=velocity===undefined?time*(f.type==='knight'?7:8)+f.phase:((f.walkPhase=(f.walkPhase??f.phase)+(moving?Math.min(15,velocity)*dt*(f.type==='knight'?5:8):0)));
   const blend=1-Math.exp(-16*dt),running=mode==='run';const pulse=Math.max(0,Math.sin(time*4.8+f.phase)),ranged=['archer','crossbow'].includes(f.type);

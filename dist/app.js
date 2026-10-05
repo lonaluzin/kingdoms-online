@@ -1,3 +1,4 @@
+import {loadAssets} from './assets.js';
 import { connectOnline } from './online.js';
 import {createAudio} from './audio.js';
 import {riverX,findRoute,routeLength} from './navigation.js';
@@ -133,6 +134,7 @@ $('#help').onclick=()=>openPanel('help');$('#show-log').onclick=()=>openPanel('l
 function togglePause(){perform('speed',{speed:state.speed===0?1:0});}$('#pause').onclick=togglePause;
 document.addEventListener('keydown',e=>{if(document.body.classList.contains('in-menu'))return;if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(e.code==='Space'&&e.target.closest('button'))return;if(e.code==='Space'){e.preventDefault();togglePause();}if(['1','2','3','4','5'].includes(e.key))openPanel(['holdings','army','diplomacy','research','world'][Number(e.key)-1]);});
 window.addEventListener('pagehide',save);
+try{await loadAssets();}catch(error){console.error(error);$('#loading').classList.add('error');$('#loading').innerHTML=`${icon('crown')}<h2>Не удалось загрузить модели</h2><p>Проверьте соединение и повторите загрузку.</p><button class="primary" id="retry-assets">Повторить</button>`;$('#retry-assets').onclick=()=>location.reload();throw error;}
 let online;online=connectOnline({tradeState(pending,args){pendingTrade=pending?args:null;updateTradeButtons();},receive(snapshot,meta){const start=!state.online,previousHome=state.home;const unchanged=state.online&&state.time===snapshot.time,receivedAt=state.receivedAt;state=snapshot;state.receivedAt=unchanged?receivedAt:performance.now();state.online=true;if(!start&&previousHome!==state.home){selected=state.home;settlementContext=state.home;marchSource=state.home;world?.select(selected);world?.focus(selected);}if(start){selected=state.home;world?.dispose();$('#world').replaceChildren();$('#labels').replaceChildren();world=createWorld($('#world'),$('#labels'),()=>state,selectPlace,inspectArmy);world.select(selected);world.focus(selected);}updateUI(start);if(start&&!state.eliminated&&!state.matchWinner)openPanel('help');},toast});
 updateUI(true);
 describeControls();

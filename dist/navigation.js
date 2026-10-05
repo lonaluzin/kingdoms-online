@@ -4,17 +4,17 @@ export const MAPS={
  hills:{name:'Каменные холмы',seed:43271,river:3,forest:.65},
 };
 export const riverX=(z,map='valley')=>Math.sin(z*.12)*((MAPS[map]?.river||1)+2)*.35;
-export const bridges=map=>[-8,8].map(z=>({x:riverX(z,map),z}));
+export const bridges=map=>[-12,12].map(z=>({x:riverX(z,map),z}));
 export function layoutPlaces(places,map='valley'){
- const positions={home:[-22,18],gold:[22,18],red:[22,-18],silver:[-22,-18],willow:[0,18],oak:[0,-18],bandits:[-16,0],ruins:[16,0]};
+ const positions={home:[-22,18],gold:[22,18],red:[22,-18],silver:[-22,-18],willow:[10,0],oak:[-10,0],bandits:[-9,21],ruins:[9,-21]};
  return places.map(p=>({...p,...(positions[p.id]?{x:positions[p.id][0],z:positions[p.id][1]}:{})}));
 }
 export function blocked(x,z,places,map='valley'){
  if(Math.abs(x)>32||Math.abs(z)>26)return true;
- if(!places.some(p=>Math.hypot(x-p.x,z-p.z)<9)&&Math.abs(x-riverX(z,map))<3.6&&!bridges(map).some(b=>Math.abs(z-b.z)<.7&&Math.abs(x-b.x)<5))return true;
+ if(Math.abs(x-riverX(z,map))<3.6&&!bridges(map).some(b=>Math.abs(z-b.z)<.7&&Math.abs(x-b.x)<5))return true;
  return places.some(p=>Math.hypot(x-p.x,z-p.z)<(p.strategic?5:6.7));
 }
-const gate=(p,other)=>p.strategic?{x:Math.sign(other.x)*5,z:Math.sign(other.z)*5}:{x:Math.round(p.x),z:Math.round(p.z+(p.z>0?-7.5:7.5))};
+const gate=(p,other)=>p.strategic?{x:Math.sign(other.x)*5,z:Math.sign(other.z)*5}:{x:Math.round(p.x),z:Math.round(p.z+(p.z===0?(other.z>0?7.5:-7.5):p.z>0?-7.5:7.5))};
 export function findRoute(origin,target,places,map='valley'){
  const from=gate(origin,target),to=gate(target,origin),key=p=>`${p.x},${p.z}`;
  const open=[{...from,g:0,f:Math.hypot(from.x-to.x,from.z-to.z)}],seen=new Map([[key(from),open[0]]]),closed=new Set();
@@ -34,6 +34,19 @@ export function routePoint(path,t){
  const point=sample(distance),before=sample(Math.max(0,distance-.8)),after=sample(Math.min(length,distance+.8));
  return {...point,angle:Math.atan2(after.x-before.x,after.z-before.z)};
 }
+// Formation offsets extend the tangent beyond endpoints instead of stacking figures there.
+export function formationTargets(path,t,count,returning=false,map='valley'){
+ const length=routeLength(path),out=[];let distance=t*length;
+ const sample=d=>{const u=d/Math.max(1,length),p=routePoint(path,u);if(u<0||u>1){const extra=(u<0?u:u-1)*length;p.x+=Math.sin(p.angle)*extra;p.z+=Math.cos(p.angle)*extra;}return p;};
+ while(out.length<count){
+  const p=sample(distance),bank=Math.abs(p.x-riverX(p.z,map));
+  const columns=Math.min(count-out.length,bank>6.6?4:bank>5.2?2:1),angle=p.angle+(returning?Math.PI:0);
+  for(let column=0;column<columns;column++){const side=(column-(columns-1)/2)*1.12;out.push({x:p.x+Math.cos(angle)*side,z:p.z-Math.sin(angle)*side,angle});}
+  distance+=(returning?1:-1)*1.4;
+ }
+ return out;
+}
+export const formationTarget=(path,t,index,count,returning=false,map='valley')=>formationTargets(path,t,count,returning,map)[index];
 // A correction may change the destination, but never teleport a visible soldier.
 export function advanceVisualPosition(current,target,dt,speed){
  if(!current)return {...target};if(dt<=0)return {...current};
@@ -42,4 +55,5 @@ export function advanceVisualPosition(current,target,dt,speed){
 }
 // Render one snapshot interval behind the server; never advance beyond a stale snapshot.
 export function visualTime(time,receivedAt,now,speed=1){return speed===0?time:time-.65*speed+Math.min(.65,Math.max(0,(now-receivedAt)/1000))*speed;}
+
 
