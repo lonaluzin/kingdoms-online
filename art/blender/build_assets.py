@@ -76,6 +76,10 @@ def export(name,rig=None):
   scene.frame_set(0)
  bpy.ops.wm.save_as_mainfile(filepath=os.path.join(os.path.dirname(__file__),name+'.blend'))
  bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,name+'.glb'),export_format='GLB',export_animations=True,export_animation_mode='NLA_TRACKS',export_skins=True,export_yup=True)
+ if rig:
+  for track in rig.animation_data.nla_tracks:track.mute=track.name!='idle'
+  scene.frame_set(1)
+  bpy.ops.wm.save_as_mainfile(filepath=os.path.join(os.path.dirname(__file__),name+'.blend'))
 def begin():
  global parts;reset();parts=[]
 def armature(bones):
