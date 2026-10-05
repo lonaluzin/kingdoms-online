@@ -29,9 +29,16 @@ export function findRoute(origin,target,places,map='valley'){
 }
 export const routeLength=path=>path.slice(1).reduce((n,p,i)=>n+Math.hypot(p.x-path[i].x,p.z-path[i].z),0);
 export function routePoint(path,t){
- const length=routeLength(path),distance=Math.max(0,Math.min(1,t))*length;let passed=0;
- for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i],d=Math.hypot(b.x-a.x,b.z-a.z);if(passed+d>=distance)return {x:a.x+(b.x-a.x)*(distance-passed)/d,z:a.z+(b.z-a.z)*(distance-passed)/d,angle:Math.atan2(b.x-a.x,b.z-a.z)};passed+=d;}
- return {...path.at(-1),angle:0};
+ const length=routeLength(path),distance=Math.max(0,Math.min(1,t))*length;
+ const sample=distance=>{let passed=0;for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i],d=Math.hypot(b.x-a.x,b.z-a.z);if(d>0&&passed+d>=distance)return {x:a.x+(b.x-a.x)*(distance-passed)/d,z:a.z+(b.z-a.z)*(distance-passed)/d};passed+=d;}return {...path.at(-1)};};
+ const point=sample(distance),before=sample(Math.max(0,distance-.8)),after=sample(Math.min(length,distance+.8));
+ return {...point,angle:Math.atan2(after.x-before.x,after.z-before.z)};
+}
+// A correction may change the destination, but never teleport a visible soldier.
+export function advanceVisualPosition(current,target,dt,speed){
+ if(!current)return {...target};if(dt<=0)return {...current};
+ const dx=target.x-current.x,dz=target.z-current.z,d=Math.hypot(dx,dz),blend=1-Math.exp(-12*dt),step=Math.min(d*blend,Math.max(0,speed)*dt*1.8),ratio=d>0?step/d:0;
+ return {x:current.x+dx*ratio,z:current.z+dz*ratio,y:current.y+(target.y-current.y)*(1-Math.exp(-10*dt))};
 }
 // Render one snapshot interval behind the server; never advance beyond a stale snapshot.
 export function visualTime(time,receivedAt,now,speed=1){return speed===0?time:time-.65*speed+Math.min(.65,Math.max(0,(now-receivedAt)/1000))*speed;}
