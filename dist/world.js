@@ -20,7 +20,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const camera = new THREE.PerspectiveCamera(39,host.clientWidth/host.clientHeight,.1,300);
   camera.position.set(32,48,54);
   const controls = new OrbitControls(camera,renderer.domElement);
-  controls.target.set(0,0,1); controls.enableDamping=true; controls.dampingFactor=.08; controls.minDistance=28; controls.maxDistance=76; controls.maxPolarAngle=Math.PI*.35; controls.minPolarAngle=.3;
+  controls.target.set(0,0,1); controls.enableDamping=true; controls.dampingFactor=.08; controls.minDistance=28; controls.maxDistance=62; controls.maxPolarAngle=Math.PI*.29; controls.minPolarAngle=.3;
   controls.mouseButtons={LEFT:THREE.MOUSE.PAN,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.ROTATE};
   controls.touches={ONE:THREE.TOUCH.PAN,TWO:THREE.TOUCH.DOLLY_ROTATE}; controls.screenSpacePanning=false;
   const hemi = new THREE.HemisphereLight('#d6e8f0','#4c6141',1.8); scene.add(hemi);
@@ -48,6 +48,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const flat=terrain.toNonIndexed(); const colors=[]; const colorset=['#688252','#718d56','#748d59','#6c8652','#7c925a','#82965f'];
   for(let i=0;i<flat.attributes.position.count;i+=3){const x=flat.attributes.position.getX(i),z=flat.attributes.position.getZ(i),d=Math.abs(x-riverX(z));const shade=Math.max(0,Math.min(5,Math.floor((Math.sin(x*.18)*Math.cos(z*.15)*.5+.5)*5+random()*.4)));const c=new THREE.Color(d<3.7?'#b5aa86':colorset[shade]);for(let k=0;k<3;k++)colors.push(c.r,c.g,c.b);}
   flat.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));flat.computeVertexNormals();
+  const skirtVertices=[];for(const [a,b]of [[[-38,-34],[38,-34]],[[38,-34],[38,34]],[[38,34],[-38,34]],[[-38,34],[-38,-34]]])for(let i=0;i<152;i++){const t=i/152,u=(i+1)/152,x=a[0]+(b[0]-a[0])*t,z=a[1]+(b[1]-a[1])*t,X=a[0]+(b[0]-a[0])*u,Z=a[1]+(b[1]-a[1])*u;skirtVertices.push(x,height(x,z),z,X,height(X,Z),Z,x,-7,z,X,height(X,Z),Z,X,-7,Z,x,-7,z);}const skirtGeometry=new THREE.BufferGeometry();skirtGeometry.setAttribute('position',new THREE.Float32BufferAttribute(skirtVertices,3));skirtGeometry.computeVertexNormals();const skirt=new THREE.Mesh(skirtGeometry,new THREE.MeshStandardMaterial({color:'#5d754b',side:THREE.DoubleSide,roughness:1}));scene.add(skirt);
   const land=new THREE.Mesh(flat,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true}));land.receiveShadow=true;scene.add(land);
   const waterUniform={value:0};
   const waterMaterial=new THREE.MeshStandardMaterial({color:'#429397',roughness:.2,metalness:.35,transparent:true,opacity:.91});
@@ -94,7 +95,24 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const flags=[],mills=[],settlements=new Map(),borderGroup=new THREE.Group();scene.add(borderGroup);
   function flag(parent,x,y,z,color){mesh(parent,'cylinder','#e0d0a6',x,y/2,z,.045,y,.045);const cloth=new THREE.Mesh(new THREE.PlaneGeometry(.85,.5,6,1),new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.8}));cloth.position.set(x+.43,y-.3,z);parent.add(cloth);flags.push(cloth);return cloth;}
   function house(parent,x,z,scale=1){return asset(parent,'house',x,z,scale*.68);}
-  function castle(group,p){const fort=asset(group,'castle');group.userData.fortifications=fort;return flag(group,0,4.8,0,p.color);}
+  function tower(parent,x,z,color,size=1){mesh(parent,'box','#c8c6ad',x,1.5*size,z,1.1*size,3*size,1.1*size);const roof=mesh(parent,new THREE.ConeGeometry(.98,1.35,4),color,x,3.65*size,z,size,size,size);roof.rotation.y=Math.PI/4;mesh(parent,'box','#485b54',x,2*size,z+.56*size,.23*size,.65*size,.035);mesh(parent,'box','#ded8bd',x,2.9*size,z,1.27*size,.2*size,1.27*size);}
+  function castle(group,p){const roof=p.id==='home'?'#487b89':p.id==='red'?'#944e47':'#a18b47';
+    const fort=new THREE.Group();group.add(fort);group.userData.fortifications=fort;
+    mesh(fort,'box','#b4b395',0,.12,0,7,.22,6);
+    for(const z of [-2.5,2.5]){mesh(fort,'box','#aaa98f',0,1,z,5.8,1.8,.4);for(let i=-2.6;i<=2.6;i+=.58)mesh(fort,'box','#d0cbb0',i,2.02,z,.3,.45,.46);}
+    for(const x of [-2.9,2.9]){mesh(fort,'box','#b8b79b',x,1,0,.4,1.8,5);for(let i=-2.2;i<=2.2;i+=.58)mesh(fort,'box','#d0cbb0',x,2.02,i,.46,.45,.3);}
+    for(const x of [-2.9,2.9])for(const z of [-2.5,2.5])tower(fort,x,z,roof,.85);
+    mesh(group,'box','#d4ceb2',0,1.9,-.7,2.35,3.5,2.1);mesh(group,'box','#e2d9ba',0,3.64,-.7,2.55,.2,2.3);
+    const r=mesh(group,new THREE.ConeGeometry(2,1.8,4),roof,0,4.5,-.7,1,1,1);r.rotation.y=Math.PI/4;
+    tower(group,1.3,-1.2,roof,1.24);const banner=flag(group,1.3,6.2,-1.2,p.color);
+    mesh(group,'box','#495a51',0,.8,2.725,1.2,1.6,.045);mesh(group,'box','#5c5b48',0,.2,3.2,1.7,.15,1.15);
+    for(const x of [-.65,.65])mesh(group,'box','#506963',x,2.45,.363,.28,.66,.04);
+    house(group,-1.6,-.1,.7,roof);
+    for(const x of [-.45,0,.45])mesh(group,'box','#5f6c63',x,2.55,.375,.18,.55,.035);
+    for(const x of [-.65,.65]){mesh(group,'box','#a89164',x,1.5,2.75,.09,1.5,.08);mesh(group,'box','#b49c6e',x,2.25,2.75,.22,.15,.16);}
+    return banner;
+  }
+  function farm(parent,x,z){const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(.65);parent.add(g);mesh(g,'box','#6b4c2d',0,.05,0,3.7,.09,2.5);for(let i=-1.5;i<=1.5;i+=.45)for(let j=-1;j<=1;j+=.45){mesh(g,'cylinder','#e1c75d',i,.3,j,.035,.5,.035);mesh(g,'cone','#eac76a',i,.58,j,.095,.23,.095);}for(const j of [-1,1]){mesh(g,'box','#a58d61',0,.4,j*1.3,3.9,.09,.08);for(let i=-1.8;i<2;i+=.6)mesh(g,'box','#a58d61',i,.3,j*1.3,.08,.6,.08);}house(g,2.2,-.2,.65,'#b67944');}
   for(const p of places){const group=new THREE.Group();group.position.set(p.x,.87,p.z);scene.add(group);let placeFlag;
     if(['capital','city'].includes(p.kind)){placeFlag=castle(group,p);group.scale.setScalar(p.id==='home'?1.04:.85);}
     else if(p.kind==='village'){
@@ -103,7 +121,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     }else if(p.kind==='camp'){for(const [x,z,r]of[[-2,-1.8,0],[2,-1.8,.2],[0,2.5,Math.PI]])asset(group,'tent',x,z,.75,r);placeFlag=flag(group,3.2,3,-1,p.color);}
     else {asset(group,'ruins',0,0,.9);}
     const ring=new THREE.Mesh(new THREE.RingGeometry(p.kind==='village'?5:6.2,p.kind==='village'?5.05:6.25,80),new THREE.MeshBasicMaterial({color:p.color,transparent:true,opacity:.6,side:THREE.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.set(p.x,1.1,p.z);borderGroup.add(ring);
-    const label=document.createElement('button');label.className='place-label';label.dataset.id=p.id;label.setAttribute('aria-label',`Выбрать ${p.name}`);label.innerHTML=`<span class="place-dot"></span><span>${p.name}</span><small></small>`;label.style.setProperty('--faction',p.color);label.onclick=()=>onSelect(p.id);labelsHost.appendChild(label);
+    const label=document.createElement('button');label.className='place-label';label.dataset.id=p.id;label.setAttribute('aria-label',`Выбрать ${p.name}`);label.innerHTML=`<span class="place-dot"></span><span>${p.name}</span><small></small>`;label.style.setProperty('--faction',p.color);label.onclick=()=>onSelect(p.id);label.oncontextmenu=e=>{e.preventDefault();onSelect(p.id,true);};labelsHost.appendChild(label);
     settlements.set(p.id,{group,label,ring,placeFlag,owner:p.owner,flagY:placeFlag?.position.y,buildingGroup:null,buildingKey:''});
   }
   function showBuildings(v,buildings){
@@ -113,6 +131,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     for(const [key,level] of Object.entries(levels).filter(([,n])=>n>0)){
      if(key==='walls')continue;
      const angle=v.slots[key]/5*Math.PI*2+Math.PI*.6,kind=getState().places.find(p=>settlements.get(p.id)===v)?.kind,radius=['camp','ruins'].includes(kind)?4.6:5.2;
+     if(key==='farm'){farm(root,Math.cos(angle)*radius,Math.sin(angle)*radius);continue;}
      const item=asset(root,names[key]||'house',Math.cos(angle)*radius,Math.sin(angle)*radius,.72);
      if(item)item.rotation.y=-angle-Math.PI/2;
     }
@@ -120,8 +139,8 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   for(const p of places)showBuildings(settlements.get(p.id),getState().settlements?.[p.id]?.buildings||(p.id===(getState().home||'home')?getState().buildings:null));
   const smoke=[];
   for(const p of places){const v=settlements.get(p.id),g=v.group;
-    if(p.kind==='ruins'){for(let i=0;i<3;i++)mesh(g,'sphere','#648459',Math.cos(i*2)*2.2,.25,Math.sin(i*2)*2.2,.6,.3,.5);continue;}
-    for(const [x,z]of[[-2.2,2.5],[2.4,.6]]){mesh(g,'cylinder','#906b43',x,.35,z,.24,.7,.24);for(const y of [.12,.55])mesh(g,'cylinder','#51594f',x,y,z,.25,.065,.25);mesh(g,'box','#816843',x+.5,.25,z,.4,.5,.4);}
+    if(p.kind==='ruins'){mesh(g,'sphere','#d8d7c3',-2.8,.45,2.4,.75,.55,.65);for(let i=0;i<3;i++)mesh(g,'sphere','#648459',Math.cos(i*2)*2.2,.25,Math.sin(i*2)*2.2,.6,.3,.5);continue;}
+    for(const [x,z]of[[-2.2,2.5],[2.4,.6]]){mesh(g,'cylinder','#906b43',x,.35,z,.24,.7,.24);for(const y of [.12,.55])mesh(g,'cylinder','#51594f',x,y,z,.25,.065,.25);mesh(g,'box','#816843',x+.5,.25,z,.28,.32,.28);}
     asset(g,'cart',p.kind==='camp'?3.9:p.kind==='village'?1.5:-1.9,p.kind==='camp'?2.2:p.kind==='village'?-2.5:1.2,.6,0);
     if(p.kind==='camp'){for(let i=0;i<8;i++){const a=i/8*Math.PI*2;mesh(g,'sphere','#777c70',Math.cos(a)*.55,.1,Math.sin(a)*.55,.17,.13,.17);}for(let i=0;i<3;i++){const flame=mesh(g,'cone',i%2?'#efaf55':'#d66c35',-.16+i*.16,.55,0,.16,.6,.16);flame.userData.fire=true;smoke.push({mesh:flame,fire:true,base:flame.position.clone(),phase:i});}const smokeMat=new THREE.MeshBasicMaterial({color:'#b2b4a4',transparent:true,opacity:.18,depthWrite:false});for(let i=0;i<0;i++){const puff=new THREE.Mesh(geometries.sphere,smokeMat);puff.position.set(0,1.6+i*.3,1.6);puff.scale.setScalar(.25);puff.userData.animate=true;g.add(puff);smoke.push({mesh:puff,base:puff.position.clone(),phase:i});}}
   }
@@ -139,7 +158,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),plane=new THREE.Plane(new THREE.Vector3(0,1,0),-.85),intersection=new THREE.Vector3();
   let down=null;
   renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};});
-  renderer.domElement.addEventListener('pointerup',e=>{if(!down||e.button!==0||Math.hypot(e.clientX-down.x,e.clientY-down.y)>6)return;const rect=renderer.domElement.getBoundingClientRect();ndc.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);raycaster.setFromCamera(ndc,camera);if(raycaster.ray.intersectPlane(plane,intersection)){const p=getState().places.find(p=>Math.hypot(intersection.x-p.x,intersection.z-p.z)<4.7);if(p)onSelect(p.id);}});
+  renderer.domElement.addEventListener('pointerup',e=>{if(!down||![0,2].includes(e.button)||Math.hypot(e.clientX-down.x,e.clientY-down.y)>6)return;const rect=renderer.domElement.getBoundingClientRect();ndc.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);raycaster.setFromCamera(ndc,camera);if(e.button===0){const hits=raycaster.intersectObjects([...armyModels.values()],true);if(hits.length){let root=hits[0].object;while(root.parent&&root.parent!==scene)root=root.parent;const entry=[...armyModels].find(([,g])=>g===root);if(entry){armySelection=entry[0];onArmy(entry[0]);return;}}}if(raycaster.ray.intersectPlane(plane,intersection)){const p=getState().places.find(p=>Math.hypot(intersection.x-p.x,intersection.z-p.z)<4.7);if(p)onSelect(p.id,e.button===2);}});
   function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}window.addEventListener('resize',resize);
   function render(){if(disposed)return;frameId=requestAnimationFrame(render);frame++;const s=getState();controls.update();controls.target.x=THREE.MathUtils.clamp(controls.target.x,-20,20);controls.target.z=THREE.MathUtils.clamp(controls.target.z,-17,17);
     const w=host.clientWidth,h=host.clientHeight;
@@ -182,33 +201,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
       if(g.userData.jaw)g.userData.jaw.rotation.x=m.battle?Math.max(0,Math.sin(time*1.6))*.45:.06+Math.sin(time*.6)*.04;
 
       if(s.speed!==0&&m.battle&&!m.beast&&now-(g.userData.sparkAt||0)>600&&effects.length<64){g.userData.sparkAt=now;for(let i=0;i<3;i++){const spark=mesh(scene,'sphere',i%2?'#e5bb73':'#d7d8bb',g.position.x+(Math.random()-.5)*2,g.position.y+.8,g.position.z+1.2,.035,.1,.035);effects.push({mesh:spark,end:now+300,velocity:new THREE.Vector3((Math.random()-.5)*.025,.012,(Math.random()-.5)*.025)});}}
-      const slots=formationTargets(path,t,g.userData.fighters.length,m.returning,map);
-      for(let index=0;index<g.userData.fighters.length;index++){const f=g.userData.fighters[index];
-        if(!m.battle&&!m.encounter){
-          const length=routeLength(path),ahead=slots[index],angle=ahead.angle;
-          let x=ahead.x,z=ahead.z;
-          if(!f.visualPosition){
-           const occupied=g.userData.fighters.slice(0,index).map(u=>u.visualPosition).filter(Boolean);
-           const free=(x,z)=>!blocked(x,z,places,map)&&occupied.every(p=>Math.hypot(x-p.x,z-p.z)>.9);
-           if(!free(x,z)){const cx=THREE.MathUtils.clamp(x,-30,30),cz=THREE.MathUtils.clamp(z,-24,24);let found=false;for(let ring=0;ring<14&&!found;ring++)for(let n=0;n<24;n++){const a=n*Math.PI/12,nx=cx+Math.cos(a)*ring*1.05,nz=cz+Math.sin(a)*ring*1.05;if(free(nx,nz)){x=nx;z=nz;found=true;break;}}}
-          }
-          // A soldier keeps his last safe foot position when a formation slot meets a wall.
-          if(blocked(x,z,places,map)&&f.visualPosition){x=f.visualPosition.x;z=f.visualPosition.z;}
-          const target={x,y:Math.max(height(x,z)+.08,Math.abs(x-riverX(z))<3.6?1.02:-Infinity),z},old=f.visualPosition,speed=length/Math.max(1,m.duration)*s.speed;
-          f.visualPosition=advanceVisualPosition(old,target,s.speed===0?0:frameDelta,speed);
-          if(old&&blocked(f.visualPosition.x,f.visualPosition.z,places,map)){
-           const next=f.visualPosition;
-           if(!blocked(next.x,old.z,places,map))next.z=old.z;
-           else if(!blocked(old.x,next.z,places,map))next.x=old.x;
-           else f.visualPosition={...old};
-          }
-          f.realSpeed=old?Math.hypot(f.visualPosition.x-old.x,f.visualPosition.z-old.z)/Math.max(.001,frameDelta):speed;
-          const local=g.worldToLocal(new THREE.Vector3(f.visualPosition.x,f.visualPosition.y,f.visualPosition.z));f.group.position.copy(local);f.baseZ=local.z;
-          f.group.rotation.y=Math.atan2(Math.sin(angle-g.rotation.y),Math.cos(angle-g.rotation.y));
-        }else{
-          // Keep the actual pose when combat ends and the old route resumes.
-          const foot=g.localToWorld(f.group.position.clone());f.visualPosition={x:foot.x,y:foot.y,z:foot.z};
-        }
+      for(const f of g.userData.fighters){
         if((m.battle||m.encounter)&&['archer','crossbow','catapult'].includes(f.type)){if(!f.shot){f.shot=new THREE.Group();if(f.type==='catapult')mesh(f.shot,'sphere','#6c7369',0,0,0,.18,.18,.18);else{mesh(f.shot,'cylinder','#ae8855',0,0,0,.018,.65,.018).rotation.x=Math.PI/2;mesh(f.shot,'cone','#d3ddde',0,0,.38,.045,.14,.045).rotation.x=Math.PI/2;}g.add(f.shot);}const phase=(time*1.1+f.phase)%1;f.shot.position.set(f.group.position.x,1+Math.sin(phase*Math.PI)*1.5,f.group.position.z+phase*5);f.shot.rotation.x=-Math.cos(phase*Math.PI)*.5;f.shot.visible=phase>.12&&phase<.92;}}
 
       animateArmy(g,time,m.battle||m.encounter?'attack':s.speed===0?'idle':routeLength(path)/m.duration>.9?'run':'walk',Math.max(0,1-(now-(g.userData.hitAt||0))/500),g.position.distanceTo(previousPosition)/Math.max(.001,frameDelta),frameDelta);

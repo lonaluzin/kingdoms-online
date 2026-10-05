@@ -3,21 +3,7 @@ import {formation} from './formation.js';
 import {cloneAsset,animateRig,hasAsset} from './assets.js';
 export function createArmyModel(mesh,flag,beast,color,troops){
  const g=new THREE.Group();g.userData.legs=[];g.userData.fighters=[];g.userData.shots=[];
- const probe=beast?cloneAsset('beast',color):hasAsset('sword');
- if(probe){
-  g.userData.rigged=true;
-  if(beast){g.add(probe);g.userData.rig=probe;return g;}
-  const aliases={militia:'sword',scout:'knight',veteran:'sword',pike:'spear',ranger:'archer',guard:'shield',halberd:'spear',marksman:'crossbow',paladin:'knight'};
-  const figures=formation(troops,48).sort((a,b)=>Number((aliases[b.type]||b.type)==='knight')-Number((aliases[a.type]||a.type)==='knight'));
-  const columns=Math.max(1,Math.min(4,Math.ceil(Math.sqrt(figures.length))));g.userData.count=figures.length;
-  for(let i=0;i<figures.length;i++){
-   const sourceType=figures[i].type,type=aliases[sourceType]||sourceType,u=cloneAsset(i===0&&!['catapult','ram','tower'].includes(type)?type+'_banner':type,color);
-   if(!u)continue;
-   u.scale.setScalar(.68);u.position.set((i%columns-(columns-1)/2)*1.12,0,-Math.floor(i/columns)*1.4);g.add(u);
-   const f={group:u,type,sourceType,phase:i*.31,baseZ:u.position.z,arms:[],legs:[],horseLegs:[],rigged:true};u.traverse(o=>{if(o.isBone&&['armL','armR'].includes(o.name))f.arms.push(o);});g.userData.fighters.push(f);
-  }
-  return g;
- }
+ if(beast&&hasAsset('beast')){const u=cloneAsset('beast',color);g.add(u);g.userData.rigged=true;g.userData.rig=u;return g;}
  if(beast){
   const dark='#292b38',rock='#444554',armor='#626170',bone='#ded0a4';
   mesh(g,'sphere',dark,0,2.6,-.3,2.5,2.3,3.5);mesh(g,'sphere',rock,0,3.5,1.4,2.35,2.4,2.3);mesh(g,'sphere',dark,0,2.6,3,1.7,1.3,1.4);
@@ -37,6 +23,7 @@ export function createArmyModel(mesh,flag,beast,color,troops){
   const figures=formation(troops),columns=Math.max(2,Math.ceil(Math.sqrt(figures.length)));g.userData.count=figures.length;
   for(let i=0;i<figures.length;i++){
    const sourceType=figures[i].type,type=({militia:'sword',scout:'knight',veteran:'sword',pike:'spear',ranger:'archer',guard:'shield',halberd:'spear',marksman:'crossbow',paladin:'knight'})[sourceType]||sourceType,u=new THREE.Group();u.position.set((i%columns-(columns-1)/2)*.88,0,-Math.floor(i/columns)*1.06);g.add(u);const fighter={group:u,type,sourceType,phase:(figures.slice(0,i).filter(f=>f.type===sourceType).length*.63+sourceType.length),baseZ:u.position.z,arms:[],legs:[],horseLegs:[]};g.userData.fighters.push(fighter);
+   if(type==='knight'&&hasAsset('knight')){const rider=cloneAsset('knight',color);rider.scale.setScalar(.68);u.add(rider);fighter.rig=rider;fighter.rigged=true;continue;}
    if(['catapult','ram','tower'].includes(type)){
     mesh(u,'box','#725737',0,.3,0,.5,.18,.65);for(const x of [-.27,.27])for(const z of [-.24,.24]){const wheel=mesh(u,'cylinder','#473b2b',x,.18,z,.17,.12,.17);wheel.rotation.z=Math.PI/2;}
     if(type==='catapult'){const arm=new THREE.Group();arm.position.set(0,.65,0);u.add(arm);mesh(arm,'box','#a78958',0,.35,0,.08,1.1,.08);mesh(arm,'sphere','#666a65',0,.75,.1,.17,.17,.17);arm.rotation.x=.6;fighter.siegeArm=arm;for(const x of [-.2,.2])mesh(u,'box','#725737',x,.62,0,.08,.7,.08);}
@@ -124,14 +111,15 @@ export function animateArmy(g,time,mode='idle',hit=0,velocity,dt=1/60){
   return;
  }
  for(const f of g.userData.fighters){
+  if(f.rig){animateRig(f.rig,mode,dt,Math.max(.15,(velocity||.8)/.85));continue;}
   const moving=mode==='walk'||mode==='run',fighting=mode==='attack',phase=velocity===undefined?time*(f.type==='knight'?7:8)+f.phase:((f.walkPhase=(f.walkPhase??f.phase)+(moving?Math.min(15,velocity)*dt*(f.type==='knight'?5:8):0)));
   const blend=1-Math.exp(-16*dt),running=mode==='run';const pulse=Math.max(0,Math.sin(time*4.8+f.phase)),ranged=['archer','crossbow'].includes(f.type);
   if(f.siegeArm)f.siegeArm.rotation.x=.6+(fighting?pulse*.8:0);
   f.group.position.z=f.baseZ+(fighting&&f.type==='ram'?pulse*.2:0);
-  f.group.position.y=moving?Math.abs(Math.sin(phase))*.035:Math.sin(time*1.4+f.phase)*.012;
+  f.group.position.y=moving?Math.abs(Math.sin(phase))*.035:0;
   f.group.rotation.x=hit>0?-.25*hit:fighting&&!ranged?pulse*.12:0;
   for(const {pivot,knee,side} of f.legs||[]){const rider=f.horseLegs.length>0,stride=rider?-.6:moving?Math.sin(phase)*side*(running?.64:.48):0;pivot.rotation.z=rider?side*.55:0;pivot.rotation.x=THREE.MathUtils.lerp(pivot.rotation.x,stride,blend);knee.rotation.x=THREE.MathUtils.lerp(knee.rotation.x,rider?1.2:moving?Math.max(0,-stride)*1.2:0,blend);}
-  for(let i=0;i<(f.arms||[]).length;i++){const arm=f.arms[i];const pose=arm===f.bannerArm?-.1+(moving?Math.sin(phase)*.04:0):f.horseLegs.length&&!fighting?-.65:moving?-Math.sin(phase)*(i?1:-1)*(running?.5:.35):fighting?(ranged?-1.2+(i?pulse*.3:0):i?-pulse*1.35:-.45):Math.sin(time*1.4+f.phase)*.025;arm.rotation.x=THREE.MathUtils.lerp(arm.rotation.x,pose,blend);arm.rotation.z=(i?1:-1)*.12;}
+  for(let i=0;i<(f.arms||[]).length;i++){const arm=f.arms[i];const pose=arm===f.bannerArm?-.1+(moving?Math.sin(phase)*.04:0):f.horseLegs.length&&!fighting?-.65:moving?-Math.sin(phase)*(i?1:-1)*(running?.5:.35):fighting?(ranged?-1.2+(i?pulse*.3:0):i?-pulse*1.35:-.45):0;arm.rotation.x=THREE.MathUtils.lerp(arm.rotation.x,pose,blend);arm.rotation.z=(i?1:-1)*.12;}
   for(const {pivot,phase:offset}of f.horseLegs||[])pivot.rotation.x=moving?Math.sin(phase+offset)*.5:0;
   if(f.shot)f.shot.visible=fighting;
  }

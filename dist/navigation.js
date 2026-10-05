@@ -14,7 +14,7 @@ export function blocked(x,z,places,map='valley'){
  if(Math.abs(x-riverX(z,map))<3.6&&!bridges(map).some(b=>Math.abs(z-b.z)<.7&&Math.abs(x-b.x)<5))return true;
  return places.some(p=>Math.hypot(x-p.x,z-p.z)<(p.strategic?5:6.7));
 }
-const gate=(p,other)=>p.strategic?{x:Math.sign(other.x)*5,z:Math.sign(other.z)*5}:{x:Math.round(p.x),z:Math.round(p.z+(p.z===0?(other.z>0?7.5:-7.5):p.z>0?-7.5:7.5))};
+const gate=(p,other)=>p.routeStart?{x:Math.round(p.x),z:Math.round(p.z)}:p.strategic?{x:Math.sign(other.x)*5,z:Math.sign(other.z)*5}:{x:Math.round(p.x),z:Math.round(p.z+(p.z===0?(other.z>0?7.5:-7.5):p.z>0?-7.5:7.5))};
 export function findRoute(origin,target,places,map='valley'){
  const from=gate(origin,target),to=gate(target,origin),key=p=>`${p.x},${p.z}`;
  const open=[{...from,g:0,f:Math.hypot(from.x-to.x,from.z-to.z)}],seen=new Map([[key(from),open[0]]]),closed=new Set();

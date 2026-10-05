@@ -19,7 +19,8 @@ Object.assign(BUILDINGS, {
  archive: {name:'Архив древних',icon:'book',kinds:['ruins'],text:'Расшифровка уцелевших знаний.',effect:'Открывает исследования',cost:{gold:280,wood:140,stone:160},income:{}},
  runeforge: {name:'Рунная кузница',icon:'shield',kinds:['ruins'],text:'Обереги укрепляют боевой дух гарнизона.',effect:'Восстановление духа в 3 раза быстрее',cost:{gold:300,stone:200},income:{}}
 });
-export const availableBuildings=p=>Object.entries(BUILDINGS).filter(([,b])=>!b.kinds||b.kinds.includes(p?.kind));
+export const buildingAllowed=(p,key)=>{const replaces=p?.kind==='camp'?['farm','market','barracks']:p?.kind==='ruins'?['quarry','academy']:[];return !replaces.includes(key)&&(!BUILDINGS[key]?.kinds||BUILDINGS[key].kinds.includes(p?.kind));};
+export const availableBuildings=p=>Object.entries(BUILDINGS).filter(([key])=>buildingAllowed(p,key));
 export const buildingSlots=(b,q=[])=>new Set([...Object.keys(b).filter(k=>b[k]>0),...q.filter(x=>x.type==='build').map(x=>x.key)]).size;
 export const militaryLevel=(b,u)=>b.mercenaries?2:u.type==='Стрелки'?Math.max(b.barracks||0,b.archery||0):u.type==='Кавалерия'?Math.max(b.barracks||0,(b.stable||0)*2):b.barracks||0;
 export const UNITS = {
@@ -122,7 +123,7 @@ export function act(s, type, args = {}) {
   if (type === 'build' || type === 'research') {
     const catalog = type === 'build' ? BUILDINGS : TECHS, levels = type === 'build' ? buildings : s.techs, item = catalog[args.key];
     if (!item) return fail('Неизвестное улучшение');
-    if(type==='build'&&item.kinds&&!item.kinds.includes(local.kind))return fail('Это здание доступно только в лагере или руинах');
+    if(type==='build'&&!buildingAllowed(local,args.key))return fail('Это здание доступно только в лагере или руинах');
     if(type==='build'&&!buildings[args.key]&&buildingSlots(buildings,localQueue)>=5)return fail('Все пять слотов заняты. Разберите ненужное здание');
     if (type === 'research' && !buildings.academy&&!buildings.archive) return fail('Сначала постройте академию');
     if (levels[args.key] >= 3) return fail('Достигнут максимальный уровень');
