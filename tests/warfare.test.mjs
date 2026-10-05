@@ -4,10 +4,10 @@ const setup=()=>{const r=new Room('a','Первый',0);r.join('b','Второй
 const advance=(r,n)=>{for(let i=0;i<Math.ceil(n*10);i++)r.tick(.1);};
 test('captured settlements have independent construction, local hiring, income and march origin',()=>{
  const r=setup(),s=r.actor('a'),p=r.places.find(p=>p.id==='bandits');p.owner=s.playerId;p.garrison={sword:10};r.refresh();const before=income(s).food;
- assert.ok(r.command('a','build',{key:'farm',settlement:p.id}).ok);assert.ok(r.command('a','build',{key:'farm',settlement:s.home}).ok);
+ assert.ok(r.command('a','build',{key:'hunting',settlement:p.id}).ok);assert.ok(r.command('a','build',{key:'farm',settlement:s.home}).ok);
  assert.equal(r.command('b','build',{key:'walls',settlement:p.id}).ok,false);
  assert.ok(r.command('a','recruit',{key:'spear',count:5,settlement:p.id}).ok);advance(r,27);
- assert.equal(p.buildings.farm,1);assert.equal(s.buildings.farm,2);assert.equal(p.garrison.spear,5);assert.equal(s.troops.spear,12);assert.ok(income(s).food>before+170);
+ assert.equal(p.buildings.hunting,1);assert.equal(s.buildings.farm,2);assert.equal(p.garrison.spear,5);assert.equal(s.troops.spear,12);assert.ok(income(s).food>before+170);
  r.command('a','diplomacy',{target:'willow',action:'war'});assert.ok(r.command('a','march',{target:'willow',source:p.id,fraction:1}).ok);const m=s.marches[0];assert.equal(m.origin,p.id);assert.equal(totalTroops(m.troops),15);assert.equal(totalTroops(p.garrison),0);
  assert.equal(costAt({gold:100},2).gold,220);
 });
