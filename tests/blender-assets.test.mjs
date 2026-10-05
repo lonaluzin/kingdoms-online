@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {formationTarget,findRoute,layoutPlaces,routeLength} from '../dist/navigation.js';
+import {formationTarget,findRoute,layoutPlaces,routeLength,advanceRenderClock} from '../dist/navigation.js';
 import {PLACES} from '../dist/game.js';
 
 function glb(name){const bytes=readFileSync(new URL(`../dist/assets/${name}.glb`,import.meta.url));assert.equal(bytes.readUInt32LE(0),0x46546c67);const size=bytes.readUInt32LE(12);return {json:JSON.parse(bytes.subarray(20,20+size)),bin:bytes.subarray(28+size)};}
@@ -28,4 +28,10 @@ test('formation makes a single file over water and separates again on the bank',
 test('opposite riverbank villages remain reachable with symmetric starting distances',()=>{
  const places=layoutPlaces([...PLACES,{id:'silver',x:0,z:0,kind:'city'}]);assert.ok(places.find(p=>p.id==='willow').x>0);assert.ok(places.find(p=>p.id==='oak').x<0);
  const distances=['home','gold','red','silver'].map(id=>Math.min(...places.filter(p=>p.kind==='village').map(p=>routeLength(findRoute(places.find(n=>n.id===id),p,places)))));assert.ok(Math.max(...distances)-Math.min(...distances)<2);
+});
+test('render clock catches up after AFK and stays bounded during normal snapshots',()=>{
+ assert.equal(advanceRenderClock(10,310,310.65,.05,1),310);
+ assert.equal(advanceRenderClock(310,310,310,.05,0),310);
+ const time=advanceRenderClock(310,310.4,310.65,1/60,1);assert.ok(time>310&&time<310.03);
+ assert.ok(advanceRenderClock(310.65,310.65,310.65,.05,1)<=310.65);
 });
