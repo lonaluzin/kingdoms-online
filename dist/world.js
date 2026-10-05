@@ -62,6 +62,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     const geo=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),70,width,4,false);const r=new THREE.Mesh(geo,mat(color));r.receiveShadow=true;scene.add(r);return points;
   }
   const places=getState().places;
+  const staging=(x,z)=>places.some(p=>{const gx=p.x+Math.sign(p.x||1)*3.8,gz=p.z+(p.z>0?-7.5:7.5),forward=(z-gz)*(p.z>0?-1:1);return Math.abs(x-gx)<2.2&&forward>-.8&&forward<13;});
   // Clear walking corridors through woods, without laying paths through the river.
   const roads=[];for(let i=0;i<places.length;i++)for(let j=i+1;j<places.length;j++){const path=findRoute(places[i],places[j],places,map);if(path)roads.push(path);}
   for(const z of [12,-12]){const x=riverX(z);mesh(scene,'box','#998564',x,.67,z,10,.4,1.6);for(const side of [-1,1]){mesh(scene,'box','#6c654e',x,1.23,z+side*.77,10,.25,.14);for(let j=-4.5;j<=4.5;j+=1.5)mesh(scene,'box','#6c654e',x+j,.78,z+side*.77,.15,1.2,.15);}for(let j=-4.5;j<4.8;j+=.35)mesh(scene,'box','#b1a383',x+j,.9,z,.055,.055,1.5);}
@@ -72,7 +73,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const dummy=new THREE.Object3D();let trees=0;
   for(let i=0;i<1100&&trees<320;i++){
     const x=random()*61-30.5,z=random()*43-21.5;
-    if(Math.abs(x-riverX(z))<4.3||places.some(p=>Math.hypot(x-p.x,z-p.z)<8.1)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<.9)))continue;
+    if(Math.abs(x-riverX(z))<4.3||places.some(p=>Math.hypot(x-p.x,z-p.z)<8.1)||staging(x,z)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<1.9)))continue;
     const n=Math.sin(x*.13+1)*Math.cos(z*.15);if(random()>(n+.9)*.58*MAPS[map].forest)continue;
     const h=height(x,z),scale=.5+random()*.7;
     dummy.position.set(x,h+.6*scale,z);dummy.scale.setScalar(scale);dummy.rotation.y=random()*7;dummy.updateMatrix();trunk.setMatrixAt(trees,dummy.matrix);
@@ -85,10 +86,10 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   for(const t of [trunk,crowns,tips,canopy,upperCanopy]){t.count=trees;t.castShadow=true;t.receiveShadow=true;scene.add(t);}
   for(const side of [-1,1])for(let i=0;i<6;i++){const x=-29+i*11+(random()-.5),z=side*(27+random()*2);if(Math.abs(x-riverX(z))<6||places.some(p=>Math.hypot(x-p.x,z-p.z)<9))continue;const size=2.1+random()*1.7,m=asset(scene,'mountain',x,z,size,random()*6);if(m)m.position.y=height(x,z)-.08;}
 
-  for(let i=0;i<24;i++){const x=random()*60-30,z=random()*48-24;if(places.some(p=>Math.hypot(x-p.x,z-p.z)<5)||Math.abs(x-riverX(z))<3.4)continue;const sc=.3+random()*.6;mesh(scene,'sphere','#9a9c85',x,height(x,z)+sc*.3,z,sc,sc*.8,sc);}
+  for(let i=0;i<24;i++){const x=random()*60-30,z=random()*48-24;if(places.some(p=>Math.hypot(x-p.x,z-p.z)<8.1)||staging(x,z)||Math.abs(x-riverX(z))<3.4)continue;const sc=.3+random()*.6;mesh(scene,'sphere','#9a9c85',x,height(x,z)+sc*.3,z,sc,sc*.8,sc);}
   // Vegetation shares geometry and uses two draw calls, rather than hundreds of small objects.
   const shrubs=new THREE.InstancedMesh(geometries.sphere,mat('#69834f'),80),grass=new THREE.InstancedMesh(new THREE.ConeGeometry(.12,.55,3),mat('#87975b'),180);let bushes=0,tufts=0;
-  for(let i=0;i<600&&tufts<180;i++){const x=random()*60-30,z=random()*48-24;if(Math.abs(x-riverX(z))<3.8||places.some(p=>Math.hypot(x-p.x,z-p.z)<8.1)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<.8)))continue;const h=height(x,z);dummy.position.set(x,h+.2,z);dummy.scale.set(.6+random()*.4,.3+random()*.25,.55+random()*.4);dummy.rotation.y=random()*6;dummy.updateMatrix();if(bushes<80&&i%3===0)shrubs.setMatrixAt(bushes++,dummy.matrix);dummy.scale.setScalar(.6+random());dummy.position.y=h+.12;dummy.updateMatrix();grass.setMatrixAt(tufts++,dummy.matrix);}
+  for(let i=0;i<600&&tufts<180;i++){const x=random()*60-30,z=random()*48-24;if(Math.abs(x-riverX(z))<3.8||places.some(p=>Math.hypot(x-p.x,z-p.z)<8.1)||staging(x,z)||roads.some(r=>r.some(p=>Math.hypot(x-p.x,z-p.z)<.8)))continue;const h=height(x,z);dummy.position.set(x,h+.2,z);dummy.scale.set(.6+random()*.4,.3+random()*.25,.55+random()*.4);dummy.rotation.y=random()*6;dummy.updateMatrix();if(bushes<80&&i%3===0)shrubs.setMatrixAt(bushes++,dummy.matrix);dummy.scale.setScalar(.6+random());dummy.position.y=h+.12;dummy.updateMatrix();grass.setMatrixAt(tufts++,dummy.matrix);}
   shrubs.count=bushes;grass.count=tufts;shrubs.castShadow=true;scene.add(shrubs,grass);
   const flags=[],mills=[],settlements=new Map(),borderGroup=new THREE.Group();scene.add(borderGroup);
   function flag(parent,x,y,z,color){mesh(parent,'cylinder','#e0d0a6',x,y/2,z,.045,y,.045);const cloth=new THREE.Mesh(new THREE.PlaneGeometry(.85,.5,6,1),new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.8}));cloth.position.set(x+.43,y-.3,z);parent.add(cloth);flags.push(cloth);return cloth;}
