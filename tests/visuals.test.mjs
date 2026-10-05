@@ -10,6 +10,19 @@ const geo={box:new THREE.BoxGeometry(),cone:new THREE.ConeGeometry(1,1,7),sphere
 const materials=new Map();
 const mesh=(parent,shape,color,x,y,z,sx=1,sy=1,sz=1)=>{if(!materials.has(color))materials.set(color,new THREE.MeshBasicMaterial({color}));const m=new THREE.Mesh(geo[shape],materials.get(color));m.position.set(x,y,z);m.scale.set(sx,sy,sz);parent.add(m);return m;};
 const flag=()=>null;
+
+test('army standard stays in a living soldier hand for infantry, cavalry and casualty rebuilds',()=>{
+ const heldFlag=(parent,x,y,z,color)=>{mesh(parent,'cylinder','#e0d0a6',x,y/2,z,.025,y,.025);const cloth=new THREE.Mesh(new THREE.PlaneGeometry(.85,.5),new THREE.MeshBasicMaterial({color}));cloth.position.set(x+.43,y-.3,z);parent.add(cloth);return cloth;};
+ for(const troops of [{sword:20,knight:10},{sword:1},{knight:1},{archer:1}]){
+  const g=createArmyModel(mesh,heldFlag,false,'#448877',troops),bearer=g.userData.bannerBearer,standard=g.userData.standard;
+  assert.ok(bearer);assert.equal(standard.parent,bearer.arms[1]);assert.equal(g.userData.banner.parent,standard);
+  const grip=standard.position.clone();
+  for(const mode of ['walk','run','idle','attack']){animateArmy(g,1,mode);bearer.group.position.set(8,2,-12);g.rotation.y=1.7;g.updateMatrixWorld(true);const world=standard.getWorldPosition(new THREE.Vector3());const expected=bearer.arms[1].localToWorld(grip.clone());assert.ok(world.distanceTo(expected)<1e-9);assert.ok(Math.abs(bearer.bannerArm.rotation.x)<.2);}
+  // The fallen body also carries the standard; no detached root flag survives.
+  bearer.group.rotation.z=1.4;g.updateMatrixWorld(true);assert.ok(standard.getWorldPosition(new THREE.Vector3()).distanceTo(bearer.arms[1].localToWorld(grip.clone()))<1e-9);
+ }
+ for(const troops of [{},{catapult:5}])assert.equal(createArmyModel(mesh,heldFlag,false,'#448877',troops).userData.banner,undefined);
+});
 test('city and guard labels need no march context; beast health stays below the header',()=>{assert.equal(labelTransform({x:0,y:0},1280,720),'translate(-50%,-100%) translate(640px,360px)');assert.equal(labelTransform({x:0,y:1},1280,720,165),'translate(-50%,-100%) translate(640px,165px)');});
 test('walking, waiting and attack use joint poses; weapons follow the hand',()=>{
  const g=createArmyModel(mesh,flag,false,'#448877',{sword:5,spear:5,archer:5,crossbow:5,knight:5,shield:5});
