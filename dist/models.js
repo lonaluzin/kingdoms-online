@@ -76,7 +76,15 @@ export function createArmyModel(mesh,flag,beast,color,troops){
    if(sourceType==='militia')mesh(u,'box','#997951',0,.68,.17,.3,.34,.035);
    u.scale.setScalar(1.13);
   }
-  g.userData.banner=flag(g,0,2.6,.3,color);
+  const bearer=g.userData.fighters.find(f=>['sword','spear','shield','knight'].includes(f.type)&&f.arms.length)||g.userData.fighters.find(f=>f.arms.length);
+  if(bearer){
+   const hand=bearer.arms[1],standard=new THREE.Group();
+   // The pole starts at the hand, not at the army's moving route centre.
+   standard.position.set(0,-.42,.095);hand.add(standard);
+   const banner=flag(standard,0,1.8,0,color);
+   if(banner){for(const weapon of [...hand.children])if(weapon!==standard&&weapon.position.x>.02)hand.remove(weapon);bearer.bannerArm=hand;g.userData.banner=banner;g.userData.standard=standard;g.userData.bannerBearer=bearer;}
+   else hand.remove(standard);
+  }
  }
  batchStaticParts(g);
  return g;
@@ -102,7 +110,7 @@ export function animateArmy(g,time,mode='idle',hit=0,velocity,dt=1/60){
   f.group.position.y=moving?Math.abs(Math.sin(phase))*.035:Math.sin(time*1.4+f.phase)*.012;
   f.group.rotation.x=hit>0?-.25*hit:fighting&&!ranged?pulse*.12:0;
   for(const {pivot,knee,side} of f.legs||[]){const rider=f.horseLegs.length>0,stride=rider?-.6:moving?Math.sin(phase)*side*(running?.64:.48):0;pivot.rotation.z=rider?side*.55:0;pivot.rotation.x=THREE.MathUtils.lerp(pivot.rotation.x,stride,blend);knee.rotation.x=THREE.MathUtils.lerp(knee.rotation.x,rider?1.2:moving?Math.max(0,-stride)*1.2:0,blend);}
-  for(let i=0;i<(f.arms||[]).length;i++){const arm=f.arms[i];const pose=f.horseLegs.length&&!fighting?-.65:moving?-Math.sin(phase)*(i?1:-1)*(running?.5:.35):fighting?(ranged?-1.2+(i?pulse*.3:0):i?-pulse*1.35:-.45):Math.sin(time*1.4+f.phase)*.025;arm.rotation.x=THREE.MathUtils.lerp(arm.rotation.x,pose,blend);arm.rotation.z=(i?1:-1)*.12;}
+  for(let i=0;i<(f.arms||[]).length;i++){const arm=f.arms[i];const pose=arm===f.bannerArm?-.1+(moving?Math.sin(phase)*.04:0):f.horseLegs.length&&!fighting?-.65:moving?-Math.sin(phase)*(i?1:-1)*(running?.5:.35):fighting?(ranged?-1.2+(i?pulse*.3:0):i?-pulse*1.35:-.45):Math.sin(time*1.4+f.phase)*.025;arm.rotation.x=THREE.MathUtils.lerp(arm.rotation.x,pose,blend);arm.rotation.z=(i?1:-1)*.12;}
   for(const {pivot,phase:offset}of f.horseLegs||[])pivot.rotation.x=moving?Math.sin(phase+offset)*.5:0;
   if(f.shot)f.shot.visible=fighting;
  }
