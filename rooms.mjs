@@ -1,7 +1,6 @@
-import {STANCES,tickSkirmishes} from './skirmishes.mjs';
 import {troopsAt,spirit,prepareBattle,advanceBattle,tickBeast} from './warfare.mjs';
 import {randomBytes} from 'node:crypto';
-import {MAPS,layoutPlaces,findRoute,routeLength} from './dist/navigation.js';
+import {MAPS,layoutPlaces,findRoute,routeLength,routePoint} from './dist/navigation.js';
 import {freshGame,act,tick,power,armySpeed,totalTroops,PLACES,BUILDINGS,UNITS,TECHS} from './dist/game.js';
 const homes=['home','gold','red','silver'];
 const colors=['#70cdb6','#e5bf70','#df897a','#9caded'];
@@ -80,16 +79,24 @@ export class Room {
     if(!args||typeof args!=='object'||Array.isArray(args))return fail('Неверные параметры');
     if(['build','recruit','research'].includes(type)&&!Object.hasOwn(type==='build'?BUILDINGS:type==='recruit'?UNITS:TECHS,args.key))return fail('Неизвестное улучшение или войско');
     this.updated=Date.now();
-    if(type==='stance'){if(!STANCES.includes(args.stance))return fail('Неизвестная стойка');if(typeof args.id==='string'&&args.id.startsWith('guard-')){const p=this.places.find(p=>p.id===args.id.slice(6)&&p.owner===s.playerId);if(!p)return fail('Выберите свой гарнизон');p.guardStance=args.stance;return {ok:true,message:'Стойка гарнизона изменена'};}const march=s.marches.find(m=>m.id===args.id);if(!march)return fail('Выберите свою армию');march.stance=args.stance;return {ok:true,message:'Стойка изменена'};}
+    if(type==='stance')return fail('Стойки отключены: войска выполняют только ваши приказы');
     if(type==='speed'||type==='time-vote')return this.timeCommand(s,type,args);
     if(type==='accept'||type==='reject'){
       const o=this.offers.find(o=>o.id===args.id&&o.to===s.playerId&&o.end>this.time);if(!o)return fail('Предложение уже недоступно');
       this.offers=this.offers.filter(x=>x!==o);if(type==='reject')return {ok:true,message:'Предложение отклонено'};
       return this.treaty(this.actors.find(a=>a.playerId===o.from),s,o.action);
     }
-    if(!['build','demolish','research','recruit','diplomacy','trade','march','reinforce','recall','summon','retreat'].includes(type))return fail('Неизвестное действие');
+    if(!['build','demolish','research','recruit','diplomacy','trade','march','reinforce','recall','summon','retreat','redirect'].includes(type))return fail('Неизвестное действие');
     this.refresh();
     if(type==='retreat'){const m=s.marches.find(m=>m.id===args.id&&m.battle&&!m.returning);if(!m)return fail('Эта армия не участвует в бою');m.casualties=m.combat.attackerStart-totalTroops(m.troops);m.outcome='retreat';m.battle=false;m.returning=true;m.start=this.time;m.end=this.time+m.duration;m.morale=Math.max(5,(m.morale??80)-10);note(s,'Армия отступает к месту отправления.','bad');return {ok:true,message:'Приказ об отступлении принят'};}
+    if(type==='redirect'){
+      const m=s.marches.find(m=>m.id===args.id),target=this.places.find(p=>p.id===args.target);
+      if(!m||m.battle||m.encounter||!target)return fail('Выберите свою армию вне боя и поселение назначения');
+      if(target.owner!==s.playerId&&s.relations[target.id]&&s.relations[target.id].status!=='war')return fail('Сначала объявите войну владельцу поселения');
+      const t=Math.max(0,Math.min(1,(this.time-m.start)/Math.max(.01,m.end-m.start))),point=routePoint(m.route,m.returning?1-t:t),route=findRoute({...point,routeStart:true},target,this.places,this.map);
+      if(!route)return fail('Нет безопасного пути к поселению');
+      route.unshift({x:point.x,z:point.z});m.route=route;m.target=target.id;m.returning=false;m.battle=false;m.kind=target.owner===s.playerId?'reinforce':'march';m.start=this.time;m.duration=Math.max(12,routeLength(route)/armySpeed(m.troops));m.end=this.time+m.duration;m.outcome=null;this.refresh();return {ok:true,message:`Новый приказ: ${target.name} · ${Math.ceil(m.duration)} сек.`};
+    }
     if(type==='recall'){const p=this.places.find(p=>p.id===args.target);if(!p||p.owner!==s.playerId||p.id===s.home||!totalTroops(p.garrison||{}))return fail('В этом владении нет гарнизона');const route=findRoute(p,this.places.find(p=>p.id===s.home),this.places,this.map);if(!route)return fail('Нет безопасного пути');const duration=Math.max(12,routeLength(route)/armySpeed(p.garrison));s.marches.push({id:`${s.playerId}-${s.nextId++}`,owner:s.playerId,origin:p.id,target:s.home,kind:'recall',troops:p.garrison,route,start:this.time,end:this.time+duration,duration,returning:false});p.garrison={};this.refresh();return {ok:true,message:'Гарнизон возвращается в столицу'};}
     if(type==='diplomacy'){
       const p=this.places.find(p=>p.id===args.target), other=this.actors.find(a=>a.playerId===p?.owner);
@@ -107,7 +114,7 @@ export class Room {
     let route;
     if(type==='march'||type==='reinforce'){const target=this.places.find(p=>p.id===args.target);if(!target)return fail('Неизвестная цель');const origin=this.places.find(p=>p.id===(args.source||s.home));if(!origin||origin.owner!==s.playerId)return fail('Источник армии должен принадлежать вам');route=findRoute(origin,target,this.places,this.map);if(!route)return fail('Нет безопасного пути к поселению');}
     const r=act(s,type,args);
-    if(r.ok&&(type==='march'||type==='reinforce')){const m=s.marches.at(-1);m.id=`${s.playerId}-${m.id}`;m.origin=args.source||s.home;m.owner=s.playerId;m.route=route;m.kind=type;m.stance=STANCES.includes(args.stance)?args.stance:'defensive';m.duration=Math.max(12,routeLength(route)/armySpeed(m.troops));m.end=m.start+m.duration;const target=this.places.find(p=>p.id===m.target),defender=this.actors.find(a=>a.playerId===target.owner);if(defender&&defender!==s)note(defender,`${this.member(s).name}: ${totalTroops(m.troops)} воинов идут к ${target.name}. До прибытия ${Math.ceil(m.duration)} сек.`,'bad');r.message=`${type==='reinforce'?'Подкрепление':'Армия'} в пути: ${Math.ceil(m.duration)} сек.`;}
+    if(r.ok&&(type==='march'||type==='reinforce')){const m=s.marches.at(-1);m.id=`${s.playerId}-${m.id}`;m.origin=args.source||s.home;m.owner=s.playerId;m.route=route;m.kind=type;m.duration=Math.max(12,routeLength(route)/armySpeed(m.troops));m.end=m.start+m.duration;const target=this.places.find(p=>p.id===m.target),defender=this.actors.find(a=>a.playerId===target.owner);if(defender&&defender!==s)note(defender,`${this.member(s).name}: ${totalTroops(m.troops)} воинов идут к ${target.name}. До прибытия ${Math.ceil(m.duration)} сек.`,'bad');r.message=`${type==='reinforce'?'Подкрепление':'Армия'} в пути: ${Math.ceil(m.duration)} сек.`;}
     this.refresh();this.revision++;return r;
   }
   announce(s,text,kind){note(s,text,kind);}
@@ -151,7 +158,7 @@ export class Room {
     if(this.pauseUntil!==null&&this.wallTime>=this.pauseUntil){this.speed=1;this.pauseUntil=null;}
     if(this.speed===0)return;
     dt*=this.speed;
-    this.time+=dt;this.refresh();tickSkirmishes(this,dt);
+    this.time+=dt;this.refresh();
     for(const s of this.actors){if(s.eliminated)continue;tick(s,dt);s.time=this.time;
       tickBeast(this,s,dt);
       for(const p of this.places.filter(p=>p.owner===s.playerId))if(!this.actors.some(a=>a.marches.some(m=>m.battle&&m.target===p.id))&&!this.actors.some(a=>a.beast?.battle&&a.beast.target===p.id))p.morale=Math.max(5,Math.min(100,(p.morale??80)+(s.resources.food>0?.15:-.5)*dt*(p.buildings?.runeforge?3:1)));

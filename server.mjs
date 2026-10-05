@@ -10,7 +10,7 @@ export function createServer(){
   const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
   const server=http.createServer(async(req,res)=>{try{
     const url=new URL(req.url,'http://localhost');
-    if(url.pathname==='/health'){json(res,200,{ok:true,version:'0.8.0'});return;}
+    if(url.pathname==='/health'){json(res,200,{ok:true,version:'0.8.1'});return;}
     if(url.pathname.startsWith('/api/')){
       let token=/kingdom_session=([a-f0-9]{48})/.exec(req.headers.cookie||'')?.[1];let session=sessions.get(token);
       if(!session){if(sessions.size>=1000){json(res,503,{ok:false,message:'Сервер заполнен'});return;}token=randomBytes(24).toString('hex');session={id:token,room:null,last:Date.now(),count:0,window:Date.now(),seen:new Map()};sessions.set(token,session);res.setHeader('Set-Cookie',`kingdom_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400${req.headers['x-forwarded-proto']==='https'?'; Secure':''}`);}
