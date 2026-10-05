@@ -46,7 +46,6 @@ export class Room {
     this.places=layoutPlaces(this.places,this.map);
     const random=(()=>{let n=this.seed;return ()=>{n=(n*1664525+1013904223)>>>0;return n/4294967296;};})();const starts=[...homes];for(let i=starts.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[starts[i],starts[j]]=[starts[j],starts[i]];}this.members.forEach((m,i)=>m.home=starts[i]);
     // Two shared villages and three objectives keep the compact map readable.
-    this.places.push({id:'center',name:'Сердце долины',kind:'village',owner:'center',x:0,z:0,defense:140,color:'#d8bb74',ruler:'Хранитель перевала',strategic:true,detail:'Редкая руда: +80 золота/мин сверх обычного дохода'});
     for(const p of this.places){if(homes.includes(p.id))p.defense=220;if(p.kind==='village'&&!p.strategic)p.defense=100;}
     const shift=Math.floor(random()*3)-1;for(const p of this.places)if(!p.strategic){p.x+=Math.sign(p.x)*shift;p.z+=Math.sign(p.z)*shift;}
     this.actors=this.members.map((m,i)=>{
@@ -199,11 +198,11 @@ export class Room {
     const buildOrder=['farm','barracks','market','walls','lumber','quarry'];
     if(!s.queue.some(q=>q.type==='build'))for(const key of buildOrder)if(s.buildings[key]<(key==='barracks'?2:2)&&run('build',{key}))break;
     if(s.resources.food<150)run('trade',{resource:'food',side:'buy'});
-    if(totalTroops(s.troops)<({easy:65,medium:90,hard:140}[this.member(s).difficulty]||90)&&!s.queue.some(q=>q.type==='recruit'))run('recruit',{key:s.buildings.barracks>=2?'knight':'spear',count:8});
+    if(totalTroops(s.troops)<({easy:140,medium:220,hard:320}[this.member(s).difficulty]||90)&&!s.queue.some(q=>q.type==='recruit'))run('recruit',{key:s.buildings.barracks>=2?'knight':'spear',count:8});
     if(!s.marches.some(m=>!m.returning)&&totalTroops(s.troops)>25){
       const own=this.places.find(p=>p.id===s.home);
-      const targets=this.places.filter(p=>{const realm=this.actors.find(a=>a.playerId===p.owner);return p.owner!==s.playerId&&(!realm||this.time>=300)&&p.defense<power(s.troops,s,p)*(realm?.4:.62)&&(!s.relations[p.id]||!['alliance','pact'].includes(s.relations[p.id].status));}).sort((a,b)=>Math.hypot(a.x-own.x,a.z-own.z)-Math.hypot(b.x-own.x,b.z-own.z));
-      const p=targets[0];if(p){const enemy=this.actors.find(a=>a.playerId===p.owner);if(s.relations[p.id]?.status!=='war'&&s.relations[p.id])run('diplomacy',{target:p.id,action:'war'});run('march',{target:p.id,fraction:enemy?.5:.75});}
+      const targets=this.places.filter(p=>{const realm=this.actors.find(a=>a.playerId===p.owner);return p.owner!==s.playerId&&(!realm||this.time>=300)&&p.defense<power(s.troops,s,p)*(realm?.65:.62)&&(!s.relations[p.id]||!['alliance','pact'].includes(s.relations[p.id].status));}).sort((a,b)=>Math.hypot(a.x-own.x,a.z-own.z)-Math.hypot(b.x-own.x,b.z-own.z));
+      const p=targets[0];if(p){const enemy=this.actors.find(a=>a.playerId===p.owner);if(s.relations[p.id]?.status!=='war'&&s.relations[p.id])run('diplomacy',{target:p.id,action:'war'});run('march',{target:p.id,fraction:.75});}
     }
     if(s.time>30&&s.resources.gold>500){const p=this.places.find(p=>p.kind==='village'&&p.owner!==s.playerId&&s.relations[p.id]?.status==='peace'&&!s.relations[p.id].trade);if(p)run('diplomacy',{target:p.id,action:'trade'});}
   }
