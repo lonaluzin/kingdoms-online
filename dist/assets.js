@@ -4,7 +4,7 @@ import {clone} from './vendor/utils/SkeletonUtils.js';
 
 const catalog=new Map();
 export const hasAsset=name=>catalog.has(name);
-export const assetNames=['sword','spear','shield','archer','crossbow','knight','beast','house','barracks','stable','academy','market','lumber','quarry','shrine','farm','archery','mill','cart','tent','ruins','mountain','castle','catapult','ram','tower','sword_banner','spear_banner','shield_banner','archer_banner','crossbow_banner','knight_banner','rubble'];
+export const assetNames=['sword','spear','shield','archer','crossbow','knight','beast','house','barracks','stable','academy','market','lumber','quarry','shrine','farm','archery','mill','cart','tent','ruins','mountain','castle','catapult','ram','tower','sword_banner','spear_banner','shield_banner','archer_banner','crossbow_banner','knight_banner','rubble','hunting','spoils','mercenaries','excavation','archive','runeforge'];
 export async function loadAssets(){
  const loader=new GLTFLoader();
  await Promise.all(assetNames.map(async name=>{

@@ -55,5 +55,9 @@ export function advanceVisualPosition(current,target,dt,speed){
 }
 // Render one snapshot interval behind the server; never advance beyond a stale snapshot.
 export function visualTime(time,receivedAt,now,speed=1){return speed===0?time:time-.65*speed+Math.min(.65,Math.max(0,(now-receivedAt)/1000))*speed;}
+export function advanceRenderClock(current,desired,serverTime,dt,speed){
+ if(current===undefined||speed===0||Math.abs(desired-current)>3*Math.max(1,speed))return desired;
+ return Math.min(serverTime,current+Math.min(.1,Math.max(0,dt))*speed*(1+Math.max(-.15,Math.min(.15,(desired-current)*2))));
+}
 
 

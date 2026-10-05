@@ -1,7 +1,7 @@
 import {cloneAsset,animateRig,releaseAsset} from './assets.js';
 import {createArmyModel,animateArmy,batchStaticParts} from './models.js';
 import * as THREE from 'three';
-import {MAPS,riverX as mapRiver,findRoute,routePoint,routeLength,blocked,visualTime,advanceVisualPosition,formationTargets} from './navigation.js';
+import {MAPS,riverX as mapRiver,findRoute,routePoint,routeLength,blocked,visualTime,advanceVisualPosition,formationTargets,advanceRenderClock} from './navigation.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 
 export function labelTransform(projected,width,height,minY=0){return `translate(-50%,-100%) translate(${(projected.x+1)*width/2}px,${Math.max(minY,(-projected.y+1)*height/2)}px)`;}
@@ -109,7 +109,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   function showBuildings(v,buildings){
     const key=JSON.stringify([buildings||{},getState().places.find(p=>settlements.get(p.id)===v)?.devastated]);if(v.buildingKey===key)return;v.buildingKey=key;if(v.buildingGroup){v.group.remove(v.buildingGroup);v.buildingGroup.traverse(o=>{if(o.isMesh&&!o.userData.sharedAsset&&!Object.values(geometries).includes(o.geometry))o.geometry.dispose();});}
     const root=new THREE.Group();v.group.add(root);v.buildingGroup=root;const levels=buildings||{};v.slots??={};for(const key of Object.keys(v.slots))if(!levels[key])delete v.slots[key];for(const key of Object.keys(levels).filter(k=>levels[k]>0))if(v.slots[key]===undefined)v.slots[key]=[0,1,2,3,4].find(i=>!Object.values(v.slots).includes(i));
-    const names={farm:'farm',market:'market',barracks:'barracks',lumber:'lumber',quarry:'quarry',academy:'academy',shrine:'shrine',archery:'archery',stable:'stable',hunting:'archery',spoils:'market',mercenaries:'barracks',excavation:'quarry',archive:'academy',runeforge:'shrine'};
+    const names={farm:'farm',market:'market',barracks:'barracks',lumber:'lumber',quarry:'quarry',academy:'academy',shrine:'shrine',archery:'archery',stable:'stable',hunting:'hunting',spoils:'spoils',mercenaries:'mercenaries',excavation:'excavation',archive:'archive',runeforge:'runeforge'};
     for(const [key,level] of Object.entries(levels).filter(([,n])=>n>0)){
      if(key==='walls')continue;
      const angle=v.slots[key]/5*Math.PI*2+Math.PI*.6,kind=getState().places.find(p=>settlements.get(p.id)===v)?.kind,radius=['camp','ruins'].includes(kind)?4.6:5.2;
@@ -153,7 +153,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     waterUniform.value=performance.now()*.0008;
     for(let i=0;i<waterLines.length;i++){const l=waterLines[i];l.scale.x=.25+Math.pow(Math.sin(performance.now()*.0008+i),2)*.55;l.position.y=.05+Math.sin(performance.now()*.001+i)*.008;}
     const active=new Set(),now=performance.now(),desiredTime=s.online?visualTime(s.time,s.receivedAt||now,now,s.speed):s.time;
-    if(render.clock===undefined||s.speed===0)render.clock=desiredTime;else render.clock=Math.min(s.time,render.clock+Math.min(.1,(now-lastFrameAt)/1000)*s.speed*(1+THREE.MathUtils.clamp((desiredTime-render.clock)*2,-.15,.15)));const time=render.clock;
+    render.clock=advanceRenderClock(render.clock,desiredTime,s.time,(now-lastFrameAt)/1000,s.speed);const time=render.clock;
     const frameDelta=Math.min(.05,(now-lastFrameAt)/1000);lastFrameAt=now;
     for(const m of [...(s.mapMarches||s.marches),...(s.mapBeasts||[])]){
       active.add(m.id);const g=ensureArmy(m.id,m.beast,s.realmColors?.[m.owner]||'#8bdcba',m.troops||{});if(!g.userData.label){g.userData.label=document.createElement('button');g.userData.label.className='army-label';g.userData.label.onclick=e=>{e.stopPropagation();armySelection=m.id;onArmy(m.id);};labelsHost.append(g.userData.label);}const p=s.places.find(p=>p.id===m.target),origin=s.places.find(p=>p.id===(m.origin||s.home||'home'));
