@@ -23,15 +23,27 @@ export function createArmyModel(mesh,flag,beast,color,troops){
   const figures=formation(troops),columns=Math.min(4,Math.max(1,Math.ceil(Math.sqrt(figures.length))));g.userData.count=figures.length;
   for(let i=0;i<figures.length;i++){
    const sourceType=figures[i].type,type=({militia:'sword',scout:'knight',veteran:'sword',pike:'spear',ranger:'archer',guard:'shield',halberd:'spear',marksman:'crossbow',paladin:'knight'})[sourceType]||sourceType,u=new THREE.Group();u.position.set((i%columns-(columns-1)/2)*1.5,0,-Math.floor(i/columns)*1.55);g.add(u);const fighter={slot:i,group:u,type,sourceType,phase:(figures.slice(0,i).filter(f=>f.type===sourceType).length*.63+sourceType.length),baseZ:u.position.z,arms:[],legs:[],horseLegs:[]};g.userData.fighters.push(fighter);
-   if(type==='knight'&&hasAsset('knight')){const rider=cloneAsset('knight',color);rider.scale.setScalar(.68);u.add(rider);fighter.rig=rider;fighter.rigged=true;continue;}
+   if(type==='knight'&&hasAsset('knight')){const rider=cloneAsset('knight',color);rider.scale.setScalar(.68);
+    const palette=sourceType==='scout'?{steel:'#806b50',darksteel:'#66553e',leather:'#664832'}:{steel:'#b6c2c3',darksteel:'#586776',leather:'#664832'};
+    rider.traverse(o=>{if(!o.isMesh)return;const recolor=material=>{if(!palette[material.name])return material;const own=material.clone();own.map=null;own.color.set(palette[material.name]);own.userData.owned=true;return own;};o.material=Array.isArray(o.material)?o.material.map(recolor):recolor(o.material);});
+    u.add(rider);if(sourceType==='paladin'){mesh(u,'box','#d2b46d',0,1.4,.08,.4,.055,.04);mesh(u,'cone',color,0,1.63,-.08,.075,.3,.075);}
+fighter.rig=rider;fighter.rigged=true;continue;}
    if(['catapult','ram','tower'].includes(type)){
     mesh(u,'box','#725737',0,.3,0,.5,.18,.65);for(const x of [-.27,.27])for(const z of [-.24,.24]){const wheel=mesh(u,'cylinder','#473b2b',x,.18,z,.17,.12,.17);wheel.rotation.z=Math.PI/2;}
     if(type==='catapult'){const arm=new THREE.Group();arm.position.set(0,.65,0);u.add(arm);mesh(arm,'box','#a78958',0,.35,0,.08,1.1,.08);mesh(arm,'sphere','#666a65',0,.75,.1,.17,.17,.17);arm.rotation.x=.6;fighter.siegeArm=arm;for(const x of [-.2,.2])mesh(u,'box','#725737',x,.62,0,.08,.7,.08);}
-    else if(type==='tower')mesh(u,'box','#977649',0,.8,0,.5,1.1,.5);
-    else{mesh(u,'cylinder','#ad8958',0,.62,0,.16,.8,.16).rotation.x=Math.PI/2;mesh(u,'cone',color,0,.95,0,.55,.45,.55);}continue;
+    else if(type==='tower'){
+     for(const x of [-.32,.32])for(const z of [-.34,.34])mesh(u,'box','#725737',x,1.1,z,.09,1.9,.09);
+     for(const y of [.6,1.4,2])mesh(u,'box','#aa8653',0,y,0,.8,.09,.85);
+     for(const x of [-.24,.24])mesh(u,'box','#725737',x,1.1,-.4,.045,1.8,.045);
+     for(let j=0;j<7;j++)mesh(u,'box','#aa8653',0,.35+j*.23,-.43,.5,.045,.045);
+     for(const x of [-.37,.37])mesh(u,'box','#977649',x,1.65,0,.07,.55,.8);
+    }
+    else{mesh(u,'cylinder','#ad8958',0,.62,0,.16,1.15,.16).rotation.x=Math.PI/2;mesh(u,'box','#586776',0,.62,.62,.28,.28,.14);
+     for(const x of [-.3,.3]){mesh(u,'box','#725737',x,.67,0,.08,.8,.08);const roof=mesh(u,'box','#987348',x*.55,1.13,0,.4,.08,1.25);roof.rotation.z=x<0?.45:-.45;}
+}continue;
    }
    const rider=type==='knight',ranged=['archer','crossbow'].includes(type),y=rider?.62:0;
-   const steel='#b6c2c3',darkSteel='#586776',leather='#664832',skin='#d4ac85';
+   const steel=sourceType==='militia'?'#9b7953':'#b6c2c3',darkSteel=sourceType==='militia'?'#74573b':'#586776',leather='#664832',skin='#d4ac85';
    if(rider){
     mesh(u,'sphere',leather,0,.61,0,.29,.3,.56);mesh(u,'sphere',leather,0,.93,.38,.2,.38,.22).rotation.x=-.35;
     mesh(u,'sphere',leather,0,1.1,.58,.16,.19,.29);for(const x of [-.09,.09])mesh(u,'cone',leather,x,1.32,.48,.055,.2,.055);
@@ -68,14 +80,19 @@ export function createArmyModel(mesh,flag,beast,color,troops){
     for(let j=0;j<3;j++)mesh(u,'box','#dbc49c',-.13+j*.04,1.04+y,-.18,.02,.3,.02);
    }else{
     const spear=type==='spear'||rider;
-    if(spear)mesh(u,'cylinder','#93764d',.27,.95+y,.1,.025,1.5,.025);
-    else mesh(u,'box',steel,.27,.95+y,.1,.075,.72,.035);
+    if(spear)mesh(u,'cylinder','#93764d',.27,(sourceType==='pike'?1.28:.95)+y,.1,.025,sourceType==='pike'?2.2:1.5,.025);
+    else mesh(u,'box',steel,.27,.95+y,.1,sourceType==='militia'?.13:.075,sourceType==='veteran'?.86:.72,.035);
     mesh(u,'box','#b8a571',.27,.64+y,.1,.18,.045,.055);
-    if(spear)mesh(u,'cone',steel,.27,1.78+y,.1,.065,.28,.065);
+    if(spear)mesh(u,'cone',steel,.27,(sourceType==='pike'?2.46:1.78)+y,.1,.065,.28,.065);
+    if(sourceType==='halberd'){mesh(u,'box',steel,.37,1.58,.1,.3,.27,.055);mesh(u,'cone',steel,.57,1.58,.1,.11,.2,.075).rotation.z=-Math.PI/2;}
+
     const shield=mesh(u,'cylinder',type==='shield'?darkSteel:color,-.27,.65+y,.13,type==='shield'?.27:.19,.09,type==='shield'?.27:.19);shield.rotation.x=Math.PI/2;
     mesh(u,'sphere',steel,-.27,.65+y,.2,.07,.07,.04);
     if(type==='shield'){shield.scale.y=.07;shield.scale.x=.26;shield.scale.z=.37;mesh(u,'box',steel,-.27,.65+y,.2,.035,.62,.035);mesh(u,'box',steel,-.27,.65+y,.2,.45,.035,.035);}
    }
+   if(sourceType==='veteran'){mesh(u,'box','#586776',0,.75,.17,.34,.38,.06);for(const side of [-1,1])mesh(u,'sphere','#b6c2c3',side*.23,.86,0,.15,.13,.14);mesh(u,'box',color,0,.65,-.18,.36,.55,.045);}
+   if(sourceType==='ranger'){mesh(u,'box','#4d6448',0,.65,-.18,.35,.7,.045);mesh(u,'cylinder','#664832',-.18,.8,-.2,.09,.55,.09);}
+   if(sourceType==='marksman')mesh(u,'box','#b6c2c3',.3,.7,.24,.62,.08,.12);
    // Move the weapon assembly into the hand pivot so swings remain anatomically connected.
    const weapons=u.children.filter(o=>o.isMesh&&(o.userData.handWeapon||o.position.x>.24&&o.position.y>.5+y));
    for(const weapon of weapons)fighter.arms[1].attach(weapon);

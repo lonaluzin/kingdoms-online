@@ -10,8 +10,8 @@ export const BUILDINGS = {
   shrine: { name: 'Древнее святилище', icon: 'flame', text: 'Здесь ещё помнят имена древних зверей.', effect: 'Открывает ритуал призыва', cost: { gold: 650, wood: 200, stone: 350 }, income: {} },
 };
 Object.assign(BUILDINGS, {
- archery: {name:'Стрельбище',icon:'bow',text:'Подготовка стрелков.',effect:'Арбалетчики без казарм',cost:{gold:220,wood:180},income:{}},
- stable: {name:'Конюшня',icon:'horse',text:'Боевые кони для рыцарей.',effect:'Открывает рыцарей',cost:{gold:350,wood:220,stone:100},income:{}},
+ archery: {name:'Стрельбище',icon:'bow',text:'Отдельная ветка стрелков: арбалетчики и егеря без казарм.',effect:'I: арбалетчики и егеря · III: королевские стрелки + военное дело',cost:{gold:220,wood:180},income:{}},
+ stable: {name:'Конюшня',icon:'horse',text:'Отдельная ветка конницы. Лёгкие разведчики доступны с начала игры.',effect:'I: рыцари без казарм II · II: королевские рыцари + военное дело',cost:{gold:350,wood:220,stone:100},income:{}},
  hunting: {name:'Охотничий двор',icon:'wheat',kinds:['camp'],text:'Разведчики добывают пищу в лесах.',effect:'+120 еды / мин',cost:{gold:140,wood:140},income:{food:120}},
  spoils: {name:'Склад трофеев',icon:'coins',kinds:['camp'],text:'Продажа добычи с караванов.',effect:'+120 золота / мин',cost:{gold:240,wood:160},income:{gold:120}},
  mercenaries: {name:'Двор наёмников',icon:'swords',kinds:['camp'],text:'Опытные воины поступают на службу.',effect:'Заменяет казармы уровня II',cost:{gold:380,wood:180,stone:100},income:{}},
