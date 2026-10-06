@@ -49,3 +49,10 @@ test('pike, halberd and siege tower have readable silhouettes',()=>{
  const width=type=>new THREE.Box3().setFromObject(make(type)).getSize(new THREE.Vector3()).x;
  assert.ok(width('halberd')>width('spear')+.1);
 });
+
+import {lostFigureIndices} from '../dist/formation.js';
+test('casualties do not kill and respawn a full visible group for each single lost troop',()=>{
+ assert.deepEqual(lostFigureIndices({sword:10,archer:5},{sword:9,archer:5}),[]);
+ assert.deepEqual(lostFigureIndices({sword:10,archer:5},{sword:5,archer:4}),[1]);
+ assert.deepEqual(lostFigureIndices({sword:10,archer:5},{sword:0,archer:5}),[0,1]);
+});
