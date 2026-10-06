@@ -61,3 +61,17 @@ export function advanceRenderClock(current,desired,serverTime,dt,speed){
 }
 
 
+
+// Fixed marching order, no independent avoidance or pursuit. Columns follow the same route.
+export function marchingTargets(path,t,count,returning=false,map='valley'){
+ const length=routeLength(path),crosses=bridges(map).some(b=>path.some((p,i)=>{const a=path[Math.max(0,i-1)],dx=p.x-a.x,dz=p.z-a.z,u=Math.max(0,Math.min(1,((b.x-a.x)*dx+(b.z-a.z)*dz)/Math.max(.001,dx*dx+dz*dz)));return Math.hypot(a.x+dx*u-b.x,a.z+dz*u-b.z)<5;})),columns=crosses?1:Math.min(3,count),out=[];
+ for(let i=0;i<count;i++){
+  const d=t*length-Math.floor(i/Math.max(1,columns))*1.55,u=d/Math.max(.001,length),p=routePoint(path,u);
+  if(u<0||u>1){const extra=(u<0?u:u-1)*length;p.x+=Math.sin(p.angle)*extra;p.z+=Math.cos(p.angle)*extra;}
+  const angle=p.angle+(returning?Math.PI:0),side=columns===1?0:(i%columns-(columns-1)/2)*1.5;
+  out.push({x:p.x+Math.cos(p.angle)*side,z:p.z-Math.sin(p.angle)*side,angle});
+ }
+ return out;
+}
+
+

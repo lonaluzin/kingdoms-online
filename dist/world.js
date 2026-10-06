@@ -1,7 +1,7 @@
 import {cloneAsset,animateRig,releaseAsset} from './assets.js';
 import {createArmyModel,animateArmy,batchStaticParts} from './models.js';
 import * as THREE from 'three';
-import {MAPS,riverX as mapRiver,findRoute,routePoint,routeLength,blocked,visualTime,advanceVisualPosition,formationTargets,advanceRenderClock} from './navigation.js';
+import {MAPS,riverX as mapRiver,findRoute,routePoint,routeLength,blocked,visualTime,advanceVisualPosition,marchingTargets,advanceRenderClock} from './navigation.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 
 export function labelTransform(projected,width,height,minY=0){return `translate(-50%,-100%) translate(${(projected.x+1)*width/2}px,${Math.max(minY,(-projected.y+1)*height/2)}px)`;}
@@ -96,19 +96,21 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   function flag(parent,x,y,z,color){mesh(parent,'cylinder','#e0d0a6',x,y/2,z,.045,y,.045);const cloth=new THREE.Mesh(new THREE.PlaneGeometry(.85,.5,6,1),new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.8}));cloth.position.set(x+.43,y-.3,z);parent.add(cloth);flags.push(cloth);return cloth;}
   function house(parent,x,z,scale=1){return asset(parent,'house',x,z,scale*.68);}
   function tower(parent,x,z,color,size=1){mesh(parent,'box','#c8c6ad',x,1.5*size,z,1.1*size,3*size,1.1*size);const roof=mesh(parent,new THREE.ConeGeometry(.98,1.35,4),color,x,3.65*size,z,size,size,size);roof.rotation.y=Math.PI/4;mesh(parent,'box','#485b54',x,2*size,z+.56*size,.23*size,.65*size,.035);mesh(parent,'box','#ded8bd',x,2.9*size,z,1.27*size,.2*size,1.27*size);}
-  function castle(group,p){const roof=p.id==='home'?'#487b89':p.id==='red'?'#944e47':'#a18b47';
+  function castle(group,p){const roof=p.id==='home'?'#487b89':p.id==='red'?'#944e47':'#487b89';
     const fort=new THREE.Group();group.add(fort);group.userData.fortifications=fort;
     mesh(fort,'box','#b4b395',0,.12,0,7,.22,6);
     for(const z of [-2.5,2.5]){mesh(fort,'box','#aaa98f',0,1,z,5.8,1.8,.4);for(let i=-2.6;i<=2.6;i+=.58)mesh(fort,'box','#d0cbb0',i,2.02,z,.3,.45,.46);}
     for(const x of [-2.9,2.9]){mesh(fort,'box','#b8b79b',x,1,0,.4,1.8,5);for(let i=-2.2;i<=2.2;i+=.58)mesh(fort,'box','#d0cbb0',x,2.02,i,.46,.45,.3);}
     for(const x of [-2.9,2.9])for(const z of [-2.5,2.5])tower(fort,x,z,roof,.85);
-    mesh(group,'box','#d4ceb2',0,1.9,-.7,2.35,3.5,2.1);mesh(group,'box','#e2d9ba',0,3.64,-.7,2.55,.2,2.3);
-    const r=mesh(group,new THREE.ConeGeometry(2,1.8,4),roof,0,4.5,-.7,1,1,1);r.rotation.y=Math.PI/4;
-    tower(group,1.3,-1.2,roof,1.24);const banner=flag(group,1.3,6.2,-1.2,p.color);
+    const keep=new THREE.Group();keep.rotation.y=Math.PI/2;group.add(keep);
+    mesh(keep,'box','#d4ceb2',0,1.8,-.35,2.2,3.3,2);mesh(keep,'box','#e2d9ba',0,3.47,-.35,2.4,.2,2.2);
+    const r=mesh(keep,new THREE.ConeGeometry(1.72,1.6,4),roof,0,4.3,-.35,1,1,1);r.rotation.y=Math.PI/4;
+    for(const x of [-.55,.55])mesh(keep,'box','#506963',x,2.3,.67,.25,.6,.035);
+    const banner=flag(group,1.8,4.7,-1.5,p.color);
     mesh(group,'box','#495a51',0,.8,2.725,1.2,1.6,.045);mesh(group,'box','#5c5b48',0,.2,3.2,1.7,.15,1.15);
-    for(const x of [-.65,.65])mesh(group,'box','#506963',x,2.45,.363,.28,.66,.04);
-    house(group,-1.6,-.1,.7,roof);
-    for(const x of [-.45,0,.45])mesh(group,'box','#5f6c63',x,2.55,.375,.18,.55,.035);
+
+
+
     for(const x of [-.65,.65]){mesh(group,'box','#a89164',x,1.5,2.75,.09,1.5,.08);mesh(group,'box','#b49c6e',x,2.25,2.75,.22,.15,.16);}
     return banner;
   }
@@ -140,8 +142,8 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const smoke=[];
   for(const p of places){const v=settlements.get(p.id),g=v.group;
     if(p.kind==='ruins'){mesh(g,'sphere','#d8d7c3',-2.8,.45,2.4,.75,.55,.65);for(let i=0;i<3;i++)mesh(g,'sphere','#648459',Math.cos(i*2)*2.2,.25,Math.sin(i*2)*2.2,.6,.3,.5);continue;}
-    for(const [x,z]of[[-2.2,2.5],[2.4,.6]]){mesh(g,'cylinder','#906b43',x,.35,z,.24,.7,.24);for(const y of [.12,.55])mesh(g,'cylinder','#51594f',x,y,z,.25,.065,.25);mesh(g,'box','#816843',x+.5,.25,z,.28,.32,.28);}
-    asset(g,'cart',p.kind==='camp'?3.9:p.kind==='village'?1.5:-1.9,p.kind==='camp'?2.2:p.kind==='village'?-2.5:1.2,.6,0);
+    for(const [x,z]of(p.kind==='capital'||p.kind==='city'?[[-1.8,1.5],[1.8,.8]]:[[-2.2,2.5],[2.4,.6]])){mesh(g,'cylinder','#906b43',x,.35,z,.24,.7,.24);for(const y of [.12,.55])mesh(g,'cylinder','#51594f',x,y,z,.25,.065,.25);mesh(g,'box','#816843',x+.5,.25,z,.28,.32,.28);}
+    asset(g,'cart',p.kind==='camp'?3.9:p.kind==='village'?1.5:-1.65,p.kind==='camp'?2.2:p.kind==='village'?-2.5:1.2,.6,0);
     if(p.kind==='camp'){for(let i=0;i<8;i++){const a=i/8*Math.PI*2;mesh(g,'sphere','#777c70',Math.cos(a)*.55,.1,Math.sin(a)*.55,.17,.13,.17);}for(let i=0;i<3;i++){const flame=mesh(g,'cone',i%2?'#efaf55':'#d66c35',-.16+i*.16,.55,0,.16,.6,.16);flame.userData.fire=true;smoke.push({mesh:flame,fire:true,base:flame.position.clone(),phase:i});}const smokeMat=new THREE.MeshBasicMaterial({color:'#b2b4a4',transparent:true,opacity:.18,depthWrite:false});for(let i=0;i<0;i++){const puff=new THREE.Mesh(geometries.sphere,smokeMat);puff.position.set(0,1.6+i*.3,1.6);puff.scale.setScalar(.25);puff.userData.animate=true;g.add(puff);smoke.push({mesh:puff,base:puff.position.clone(),phase:i});}}
   }
   for(const v of settlements.values())batchStaticParts(v.group);
@@ -151,7 +153,7 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
   const dustMaterial=new THREE.MeshBasicMaterial({color:'#c7b998',transparent:true,opacity:.16,depthWrite:false});
   function armyModel(beast=false,color='#8bdcba',troops={}){const g=createArmyModel(mesh,flag,beast,color,troops);g.userData.key=JSON.stringify([troops,color]);g.userData.composition={...troops};const radius=beast?3.8:Math.max(1.2,Math.sqrt(g.userData.count||1)*.65),r=new THREE.Mesh(new THREE.RingGeometry(radius,radius+.09,48),new THREE.MeshBasicMaterial({color:'#ffe2a2',transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false}));r.rotation.x=-Math.PI/2;r.position.y=.04;r.visible=false;g.add(r);g.userData.selectionRing=r;scene.add(g);return g;}
   function fallen(g,n,troops={}){g.updateMatrixWorld(true);const victims=g.userData.fighters.filter(f=>f.arms.length&&(g.userData.composition?.[f.sourceType||f.type]||0)>(troops[f.sourceType||f.type]||0)).slice(0,Math.min(4,n));for(const f of victims){if(!f.arms.length)continue;const body=f.group;scene.attach(body);if(f.rigged){animateRig(body,'death',0);effects.push({mesh:body,start:performance.now(),end:performance.now()+3200,rigDeath:true});continue;}for(const {pivot,knee}of f.legs){pivot.rotation.x=.35;knee.rotation.x=.5;}f.arms[0].rotation.z=-.8;f.arms[1].rotation.z=.65;effects.push({mesh:body,start:performance.now(),end:performance.now()+3200,fall:true,ground:Math.max(.85,height(body.position.x,body.position.z))+.19,baseY:body.position.y,baseX:body.rotation.x});}g.userData.hitAt=performance.now();}
-  function ensureArmy(id,beast,color,troops){let g=armyModels.get(id);const key=JSON.stringify([troops,color]);if(g&&!beast&&g.userData.key!==key){const old=g.userData.total||0;if(old>Object.values(troops).reduce((a,b)=>a+b,0))fallen(g,Math.ceil((old-Object.values(troops).reduce((a,b)=>a+b,0))/5),troops);const poses=new Map();for(const f of g.userData.fighters){if(f.group.parent!==g)continue;const key=f.sourceType||f.type;const list=poses.get(key)||[];list.push({pos:f.group.position.clone(),baseZ:f.baseZ,walkPhase:f.walkPhase,visualPosition:f.visualPosition});poses.set(key,list);}const pos=g.position.clone(),rot=g.rotation.y;removeArmy(id,g);g=armyModel(beast,color,troops);for(const f of g.userData.fighters){const pose=poses.get(f.sourceType||f.type)?.shift();if(pose){f.group.position.copy(pose.pos);f.baseZ=pose.baseZ;f.walkPhase=pose.walkPhase;f.visualPosition=pose.visualPosition;}}g.position.copy(pos);g.rotation.y=rot;g.userData.placed=true;g.userData.hitAt=old>Object.values(troops).reduce((a,b)=>a+b,0)?performance.now():0;armyModels.set(id,g);}if(!g){g=armyModel(beast,color,troops);armyModels.set(id,g);}g.userData.total=Object.values(troops).reduce((a,b)=>a+b,0);return g;}
+  function ensureArmy(id,beast,color,troops){let g=armyModels.get(id);const key=JSON.stringify([troops,color]);if(g&&!beast&&g.userData.key!==key){const old=g.userData.total||0;if(old>Object.values(troops).reduce((a,b)=>a+b,0))fallen(g,Math.ceil((old-Object.values(troops).reduce((a,b)=>a+b,0))/5),troops);const poses=new Map();for(const f of g.userData.fighters){if(f.group.parent!==g)continue;const key=f.sourceType||f.type;const list=poses.get(key)||[];list.push({pos:f.group.position.clone(),baseZ:f.baseZ,walkPhase:f.walkPhase,visualPosition:f.visualPosition,worldPosition:f.worldPosition,slot:f.slot});poses.set(key,list);}const pos=g.position.clone(),rot=g.rotation.y;removeArmy(id,g);g=armyModel(beast,color,troops);for(const f of g.userData.fighters){const pose=poses.get(f.sourceType||f.type)?.shift();if(pose){f.group.position.copy(pose.pos);f.baseZ=pose.baseZ;f.walkPhase=pose.walkPhase;f.visualPosition=pose.visualPosition;f.worldPosition=pose.worldPosition;if(old>Object.values(troops).reduce((a,b)=>a+b,0))f.slot=pose.slot;}}g.position.copy(pos);g.rotation.y=rot;g.userData.placed=true;g.userData.hitAt=old>Object.values(troops).reduce((a,b)=>a+b,0)?performance.now():0;armyModels.set(id,g);}if(!g){g=armyModel(beast,color,troops);armyModels.set(id,g);}g.userData.total=Object.values(troops).reduce((a,b)=>a+b,0);return g;}
   function removeArmy(id,g){releaseAsset(g);scene.remove(g);g.userData.label?.remove();const i=flags.indexOf(g.userData.banner);if(i>=0)flags.splice(i,1);armyModels.delete(id);g.traverse(o=>{if(o.isMesh){if(!o.userData.sharedAsset&&!Object.values(geometries).includes(o.geometry))o.geometry.dispose();if(!o.userData.sharedAsset&&![...mats.values()].includes(o.material))o.material.dispose();}});}
   let selection=getState().home||'home',armySelection=null,frame=0,frameId,disposed=false,lastFrameAt=performance.now();
   const projected=new THREE.Vector3();
@@ -179,8 +181,8 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
       const previousPosition=g.position.clone();const path=m.route||findRoute(origin,p,places,map);if(!path)continue;
       let t=m.battle||m.phase==='fallen'?1:THREE.MathUtils.clamp((time-m.start)/(m.end-m.start),0,1);if(m.returning)t=1-t;
       const point=m.encounter?.point||routePoint(path,t);const destination=new THREE.Vector3(m.beast&&m.battle?p.x:point.x,Math.abs(point.x-riverX(point.z))<3.6?1.02:Math.max(.8,height(point.x,point.z))+.1,m.beast&&m.battle?p.z:point.z);
-      const defender=m.battle&&!m.beast&&armyModels.get('guard-'+p.id);if(defender){destination.x=defender.position.x-Math.sign(p.x||1)*2.1;destination.z=defender.position.z;destination.y=height(destination.x,destination.z)+.1;}
-      if(g.userData.placed)g.position.lerp(destination,Math.min(1,(now-(g.userData.at||now))/1000*12));else g.position.copy(destination);g.userData.placed=true;g.userData.at=now;
+      const defender=m.battle&&!m.beast&&armyModels.get('guard-'+p.id);
+      if(g.userData.placed){const next=advanceVisualPosition(g.position,destination,s.speed===0?0:frameDelta,Math.max(.2,routeLength(path)/Math.max(1,m.duration))*(s.speed||1));g.position.set(next.x,next.y,next.z);}else g.position.copy(destination);g.userData.placed=true;g.userData.at=now;
       const label=g.userData.label;const labelText=`${m.beast?'Древний зверь':s.realmNames?.[m.owner]||'Армия'} · ${m.beast?'':Object.values(m.troops||{}).reduce((a,b)=>a+b,0)+' воинов · '}${m.battle||m.encounter?'БОЙ · нажмите':m.returning?'возвращение':Math.max(0,Math.ceil(m.end-s.time))+' сек.'}`;if(label.dataset.text!==labelText){label.dataset.text=labelText;label.textContent=labelText;}label.style.zIndex=m.battle||m.beast?'8':'4';label.style.borderColor=s.realmColors?.[m.owner]||'#e0c27c';projected.copy(g.position).add(new THREE.Vector3(0,m.beast?8:4.8,0)).project(camera);label.style.transform=labelTransform(projected,w,h,m.beast?165:0);label.hidden=projected.z>1||projected.z<-1;
       label.classList.toggle('in-battle',!!m.battle||!!m.encounter);label.classList.toggle('beast-label',!!m.beast);label.classList.toggle('selected',armySelection===m.id);label.title=label.textContent;
       if(m.beast){let hp=label.querySelector('.beast-health');if(!hp){hp=document.createElement('span');hp.className='beast-health';hp.innerHTML='<i></i>';label.append(hp);}hp.setAttribute('role','meter');hp.setAttribute('aria-label','Здоровье древнего зверя');hp.setAttribute('aria-valuemin','0');hp.setAttribute('aria-valuemax','2400');hp.setAttribute('aria-valuenow',String(m.health||0));hp.firstChild.style.width=(Math.max(0,Math.min(1,m.health/2400))*100)+'%';}
@@ -205,6 +207,18 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
         if((m.battle||m.encounter)&&['archer','crossbow','catapult'].includes(f.type)){if(!f.shot){f.shot=new THREE.Group();if(f.type==='catapult')mesh(f.shot,'sphere','#6c7369',0,0,0,.18,.18,.18);else{mesh(f.shot,'cylinder','#ae8855',0,0,0,.018,.65,.018).rotation.x=Math.PI/2;mesh(f.shot,'cone','#d3ddde',0,0,.38,.045,.14,.045).rotation.x=Math.PI/2;}g.add(f.shot);}const phase=(time*1.1+f.phase)%1;f.shot.position.set(f.group.position.x,1+Math.sin(phase*Math.PI)*1.5,f.group.position.z+phase*5);f.shot.rotation.x=-Math.cos(phase*Math.PI)*.5;f.shot.visible=phase>.12&&phase<.92;}}
 
       animateArmy(g,time,m.battle||m.encounter?'attack':s.speed===0?'idle':routeLength(path)/m.duration>.9?'run':'walk',Math.max(0,1-(now-(g.userData.hitAt||0))/500),g.position.distanceTo(previousPosition)/Math.max(.001,frameDelta),frameDelta);
+      if(!m.beast){
+        const targets=marchingTargets(path,t,Math.max(0,...g.userData.fighters.map(f=>f.slot))+1,m.returning,map);
+        g.updateMatrixWorld(true);
+        for(let i=0;i<g.userData.fighters.length;i++){
+          const f=g.userData.fighters[i],target=targets[f.slot];
+          const onBridge=Math.abs(target.x-riverX(target.z))<5&&Math.abs(Math.abs(target.z)-12)<.75;
+          target.y=onBridge?.94:Math.max(.8,height(target.x,target.z))+.07;
+          const prior=f.worldPosition,step=advanceVisualPosition(prior,target,s.speed===0?0:frameDelta,Math.max(.4,routeLength(path)/Math.max(1,m.duration))*(s.speed||1));
+          f.worldPosition=step;const local=g.worldToLocal(new THREE.Vector3(step.x,step.y,step.z));f.group.position.copy(local);
+          f.group.rotation.y=target.angle-g.rotation.y;
+        }
+      }
       g.userData.banner?.material.color.set(m.battle?'#ef9577':s.realmColors?.[m.owner]||'#8bdcba');
     }
     for(const p of s.places){const data=s.settlements?.[p.id],troops=data?.composition||p.garrison||{},count=Object.values(troops).reduce((a,b)=>a+b,0),id='guard-'+p.id;if(count>0){active.add(id);const g=ensureArmy(id,false,p.color,troops);g.position.set(p.x+Math.sign(p.x||1)*3.8,height(p.x+Math.sign(p.x||1)*3.8,p.z+(p.z>0?-7.5:7.5))+.07,p.z+(p.z>0?-7.5:7.5));g.scale.setScalar(.78);g.userData.banner?.material.color.set(p.color);
@@ -227,5 +241,6 @@ export function createWorld(host, labelsHost, getState, onSelect, onArmy=()=>{})
     dispose(){disposed=true;cancelAnimationFrame(frameId);controls.dispose();renderer.dispose();releaseAsset(scene);const geometriesToFree=new Set(),materialsToFree=new Set([dustMaterial]);scene.traverse(o=>{if(o.isMesh&&!o.userData.sharedAsset){geometriesToFree.add(o.geometry);materialsToFree.add(o.material);}});for(const g of geometriesToFree)g.dispose();for(const m of materialsToFree)m.dispose();window.removeEventListener('resize',resize);},
   };
 }
+
 
 

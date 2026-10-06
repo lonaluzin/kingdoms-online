@@ -20,9 +20,9 @@ export function createArmyModel(mesh,flag,beast,color,troops){
   for(let i=0;i<4;i++){const rune=mesh(g,'box','#81d6c2',-.7+i*.45,3.85,2.9,.07,.45,.06);rune.rotation.z=(i%2?1:-1)*.35;}
   const aura=new THREE.Mesh(new THREE.RingGeometry(3.5,3.65,24),new THREE.MeshBasicMaterial({color:'#81e1d1',transparent:true,opacity:.65,side:THREE.DoubleSide,depthWrite:false}));aura.rotation.x=-Math.PI/2;aura.position.y=.06;g.add(aura);g.userData.aura=aura;
  }else{
-  const figures=formation(troops),columns=Math.max(2,Math.ceil(Math.sqrt(figures.length)));g.userData.count=figures.length;
+  const figures=formation(troops),columns=Math.min(4,Math.max(1,Math.ceil(Math.sqrt(figures.length))));g.userData.count=figures.length;
   for(let i=0;i<figures.length;i++){
-   const sourceType=figures[i].type,type=({militia:'sword',scout:'knight',veteran:'sword',pike:'spear',ranger:'archer',guard:'shield',halberd:'spear',marksman:'crossbow',paladin:'knight'})[sourceType]||sourceType,u=new THREE.Group();u.position.set((i%columns-(columns-1)/2)*.88,0,-Math.floor(i/columns)*1.06);g.add(u);const fighter={group:u,type,sourceType,phase:(figures.slice(0,i).filter(f=>f.type===sourceType).length*.63+sourceType.length),baseZ:u.position.z,arms:[],legs:[],horseLegs:[]};g.userData.fighters.push(fighter);
+   const sourceType=figures[i].type,type=({militia:'sword',scout:'knight',veteran:'sword',pike:'spear',ranger:'archer',guard:'shield',halberd:'spear',marksman:'crossbow',paladin:'knight'})[sourceType]||sourceType,u=new THREE.Group();u.position.set((i%columns-(columns-1)/2)*1.5,0,-Math.floor(i/columns)*1.55);g.add(u);const fighter={slot:i,group:u,type,sourceType,phase:(figures.slice(0,i).filter(f=>f.type===sourceType).length*.63+sourceType.length),baseZ:u.position.z,arms:[],legs:[],horseLegs:[]};g.userData.fighters.push(fighter);
    if(type==='knight'&&hasAsset('knight')){const rider=cloneAsset('knight',color);rider.scale.setScalar(.68);u.add(rider);fighter.rig=rider;fighter.rigged=true;continue;}
    if(['catapult','ram','tower'].includes(type)){
     mesh(u,'box','#725737',0,.3,0,.5,.18,.65);for(const x of [-.27,.27])for(const z of [-.24,.24]){const wheel=mesh(u,'cylinder','#473b2b',x,.18,z,.17,.12,.17);wheel.rotation.z=Math.PI/2;}
@@ -58,7 +58,11 @@ export function createArmyModel(mesh,flag,beast,color,troops){
     const knee=new THREE.Group();knee.position.y=-.19;leg.add(knee);mesh(knee,'sphere',ranged?leather:steel,0,0,0,.08,.08,.075);mesh(knee,'cylinder',darkSteel,0,-.09,0,.06,.18,.06);mesh(knee,'box','#2e302e',0,-.17,.065,.14,.16,.23);fighter.legs.push({pivot:leg,knee,side});
    }
    if(ranged){
-    if(type==='archer')for(let j=0;j<7;j++){const a=(j-3)*.26;const bow=mesh(u,'cylinder','#b99059',.31,.75+y+Math.sin(a)*.43,.18+Math.cos(a)*.2,.025,.14,.025);bow.rotation.x=a;}
+    if(type==='archer'){
+     const bowPoints=[];for(let j=0;j<=20;j++){const a=-Math.PI/2+j*Math.PI/20;bowPoints.push(new THREE.Vector3(.31,.75+y+Math.sin(a)*.43,.18+Math.cos(a)*.23));}
+     const bowMesh=mesh(u,new THREE.TubeGeometry(new THREE.CatmullRomCurve3(bowPoints),24,.025,6,false),'#986d3f',0,0,0);bowMesh.userData.handWeapon=true;
+     mesh(u,'cylinder','#d7c6a1',.31,.75+y,.18,.009,.86,.009);
+    }
     else {mesh(u,'box','#967348',.3,.7+y,.24,.5,.07,.1);mesh(u,'box','#61503d',.3,.7+y,.18,.06,.07,.48);}
     mesh(u,'box','#eadfbb',.31,.75+y,.25,.025,.025,.65);mesh(u,'cylinder',leather,-.08,.77+y,-.18,.07,.38,.07);
     for(let j=0;j<3;j++)mesh(u,'box','#dbc49c',-.13+j*.04,1.04+y,-.18,.02,.3,.02);
@@ -73,7 +77,7 @@ export function createArmyModel(mesh,flag,beast,color,troops){
     if(type==='shield'){shield.scale.y=.07;shield.scale.x=.26;shield.scale.z=.37;mesh(u,'box',steel,-.27,.65+y,.2,.035,.62,.035);mesh(u,'box',steel,-.27,.65+y,.2,.45,.035,.035);}
    }
    // Move the weapon assembly into the hand pivot so swings remain anatomically connected.
-   const weapons=u.children.filter(o=>o.isMesh&&o.position.x>.24&&o.position.y>.5+y);
+   const weapons=u.children.filter(o=>o.isMesh&&(o.userData.handWeapon||o.position.x>.24&&o.position.y>.5+y));
    for(const weapon of weapons)fighter.arms[1].attach(weapon);
    if(['guard','halberd','marksman','paladin'].includes(sourceType)){mesh(u,'box','#d2b46d',0,.91+y,.15,.25,.045,.04);mesh(u,'cone',color,0,1.34+y,-.05,.08,.3,.08);}
    if(sourceType==='militia')mesh(u,'box','#997951',0,.68,.17,.3,.34,.035);
