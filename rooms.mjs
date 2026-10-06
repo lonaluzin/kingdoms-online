@@ -45,7 +45,7 @@ export class Room {
     this.places=layoutPlaces(this.places,this.map);
     const random=(()=>{let n=this.seed;return ()=>{n=(n*1664525+1013904223)>>>0;return n/4294967296;};})();const starts=[...homes];for(let i=starts.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[starts[i],starts[j]]=[starts[j],starts[i]];}this.members.forEach((m,i)=>m.home=starts[i]);
     // Two shared villages and three objectives keep the compact map readable.
-    for(const p of this.places){if(homes.includes(p.id))p.defense=220;if(p.kind==='village'&&!p.strategic)p.defense=100;}
+    for(const p of this.places){if(homes.includes(p.id)){p.owner=p.id;p.kind='city';p.defense=220;}if(p.kind==='village'&&!p.strategic)p.defense=100;}
     const shift=Math.floor(random()*3)-1;for(const p of this.places)if(!p.strategic){p.x+=Math.sign(p.x)*shift;p.z+=Math.sign(p.z)*shift;}
     this.actors=this.members.map((m,i)=>{
       const s=freshGame();Object.assign(s,{playerId:m.id,home:m.home,map:this.map,seed:this.seed,online:true,places:this.places,speed:1,eliminated:false,botAt:4+i*2});
