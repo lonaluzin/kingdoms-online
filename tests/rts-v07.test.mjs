@@ -21,3 +21,10 @@ test('chosen reinforcement units conserve types, reject forged counts and arrive
 test('armies obey direct orders without automatic encounters or stance commands',()=>{
  const r=setup(),a=r.actor('a'),b=r.actor('b');r.command('a','diplomacy',{target:b.home,action:'war'});const path=[{x:-12,z:0},{x:-10,z:0}];a.marches=[{id:'a',route:path,origin:a.home,target:b.home,troops:{sword:40},start:0,end:100,duration:100,stance:'aggressive'}];b.marches=[{id:'b',route:path,origin:b.home,target:a.home,troops:{sword:40},start:0,end:100,duration:100,stance:'aggressive'}];r.tick(.1);assert.equal(a.marches[0].encounter,undefined);assert.equal(b.marches[0].encounter,undefined);assert.equal(totalTroops(a.marches[0].troops),40);assert.equal(r.command('a','stance',{id:'a',stance:'aggressive'}).ok,false);
 });
+test('random starts grant exactly one settlement per ruler, with no legacy player owner',()=>{
+ for(const seed of [1,2,99,1000,1705456651]){
+  const r=new Room('host','Хост',1);r.seed=seed;assert.equal(r.start('host').ok,true);
+  assert.ok(r.places.every(p=>p.owner!=='player'));
+  for(const actor of r.actors){const owned=r.places.filter(p=>p.owner===actor.playerId);assert.equal(owned.length,1);assert.equal(owned[0].id,actor.home);assert.equal(owned[0].buildings.farm,1);}
+ }
+});

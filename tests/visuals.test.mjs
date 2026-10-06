@@ -41,3 +41,11 @@ test('sale returns the actual proceeds without adding chronicle entries',async()
  const r=act(s,'trade',{resource:'wood',side:'sell'});assert.equal(r.ok,true);assert.equal(r.message,'Продано 100 дерева · +65 золота');assert.equal(s.resources.gold,gold+65);assert.equal(s.resources.wood,wood-100);assert.equal(s.logs.length,count);
 });
 
+test('pike, halberd and siege tower have readable silhouettes',()=>{
+ const make=type=>createArmyModel(mesh,flag,false,'#448877',{[type]:5});
+ const height=type=>new THREE.Box3().setFromObject(make(type)).getSize(new THREE.Vector3()).y;
+ assert.ok(height('pike')>height('spear')+.5);
+ assert.ok(height('tower')>height('catapult')+.4);
+ const width=type=>new THREE.Box3().setFromObject(make(type)).getSize(new THREE.Vector3()).x;
+ assert.ok(width('halberd')>width('spear')+.1);
+});
