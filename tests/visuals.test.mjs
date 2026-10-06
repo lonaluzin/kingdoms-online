@@ -8,7 +8,7 @@ const {labelTransform}=await import('../dist/world.js');
 hooks.deregister();
 const geo={box:new THREE.BoxGeometry(),cone:new THREE.ConeGeometry(1,1,7),sphere:new THREE.IcosahedronGeometry(1,1),cylinder:new THREE.CylinderGeometry(1,1,1,10)};
 const materials=new Map();
-const mesh=(parent,shape,color,x,y,z,sx=1,sy=1,sz=1)=>{if(!materials.has(color))materials.set(color,new THREE.MeshBasicMaterial({color}));const m=new THREE.Mesh(geo[shape],materials.get(color));m.position.set(x,y,z);m.scale.set(sx,sy,sz);parent.add(m);return m;};
+const mesh=(parent,shape,color,x,y,z,sx=1,sy=1,sz=1)=>{if(!materials.has(color))materials.set(color,new THREE.MeshBasicMaterial({color}));const m=new THREE.Mesh(typeof shape === 'string' ? geo[shape] : shape,materials.get(color));m.position.set(x,y,z);m.scale.set(sx,sy,sz);parent.add(m);return m;};
 const flag=()=>null;
 
 test('army standard stays in a living soldier hand for infantry, cavalry and casualty rebuilds',()=>{
@@ -40,3 +40,4 @@ test('sale returns the actual proceeds without adding chronicle entries',async()
  const {freshGame,act}=await import('../dist/game.js');const s=freshGame(),gold=s.resources.gold,wood=s.resources.wood,count=s.logs.length;
  const r=act(s,'trade',{resource:'wood',side:'sell'});assert.equal(r.ok,true);assert.equal(r.message,'Продано 100 дерева · +65 золота');assert.equal(s.resources.gold,gold+65);assert.equal(s.resources.wood,wood-100);assert.equal(s.logs.length,count);
 });
+

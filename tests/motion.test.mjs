@@ -12,3 +12,22 @@ test('snapshot and obstacle corrections cannot teleport a visible figure or move
  assert.deepEqual(advanceVisualPosition(start,target,0,speed),start);
  for(const hz of [30,60,144]){let p=start;for(let i=0;i<hz;i++)p=advanceVisualPosition(p,target,1/hz,speed);assert.ok(Math.abs(Math.hypot(p.x,p.z)-speed*1.8)<1e-7);}
 });
+import {marchingTargets} from '../dist/navigation.js';
+test('bridge columns follow the deck instead of a wide rigid rectangle',()=>{
+ const path=[{x:-10,z:12},{x:0,z:12},{x:10,z:12}];
+ for(const returning of [false,true])for(const t of [.3,.5,.7]){
+  const figures=marchingTargets(path,t,12,returning);
+  assert.ok(figures.every(p=>p.z===12));
+  for(let i=1;i<figures.length;i++)assert.ok(Math.hypot(figures[i].x-figures[i-1].x,figures[i].z-figures[i-1].z)>1.5);
+ }
+});
+test('fixed marching order has unique slots and smooth positions between frames',()=>{
+ const path=[{x:-15,z:0},{x:-10,z:0},{x:-10,z:10}];
+ const a=marchingTargets(path,.4,48),b=marchingTargets(path,.4001,48);
+ assert.equal(new Set(a.map(p=>`${p.x},${p.z}`)).size,48);
+ for(let i=0;i<a.length;i++)assert.ok(Math.hypot(a[i].x-b[i].x,a[i].z-b[i].z)<.01);
+});
+test('retreat changes facing without reversing soldier slots at the battle endpoint',()=>{
+ const path=[{x:-10,z:12},{x:10,z:12}],attack=marchingTargets(path,1,12),retreat=marchingTargets(path,1,12,true);
+ for(let i=0;i<attack.length;i++){assert.equal(attack[i].x,retreat[i].x);assert.equal(attack[i].z,retreat[i].z);assert.ok(Math.abs(retreat[i].angle-attack[i].angle-Math.PI)<1e-9);}
+});
